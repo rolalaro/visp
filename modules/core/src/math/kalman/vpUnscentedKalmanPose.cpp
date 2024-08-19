@@ -98,8 +98,10 @@ void vpUnscentedKalmanPose::update(const vpColVector &z, const double &dt)
   vpColVector temp = m_K * (z - transformResults.m_mu);
   vpColVector epsilon = temp.extract(0, m_q);
   m_omega = epsilon;
-  m_Xest = m_Xpred * vpExponentialMap::direct(epsilon);
-  m_Pest = m_Ppred - m_K * m_Pz * m_K.transpose();
+  m_Xest = m_Xpred * vpExponentialMap::direct(epsilon, dt);
+  // m_Pest = m_Ppred - m_K * m_Pz * m_K.transpose(); // Cannot be computed as m_K is of incorrect dimension
+  vpMatrix Ktemp = m_K.extract(0, 0, m_q, m_q); // Hack to solve the issue stated above
+  m_Pest = m_Ppred - Ktemp * m_Pz * Ktemp.transpose();
 }
 
 vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPointsDrawingPredict()
@@ -151,7 +153,7 @@ vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPoi
 {
   const unsigned int l = m_q + m_k;
   const double lambda = ((m_alphaUpdate * m_alphaUpdate)- 1.) * static_cast<double>(l);
-  const unsigned int nbSigmaPoints = 2 * l;
+  const unsigned int nbSigmaPoints = 2 * l + 1;
   const double commonWeight = 0.5/(lambda + static_cast<double>(l));
 
   vpSigmaPointDrawingResult results;
@@ -162,20 +164,21 @@ vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPoi
   results.m_wc[0] = (lambda / (lambda + static_cast<double>(l))) + (3. - m_alphaUpdate * m_alphaUpdate);
   results.m_muchis = vpColVector(l, 0.);
   results.m_muchis.insert(m_q, m_muNoiseMeas);
+  results.m_chis[0] = results.m_muchis;
 
   vpMatrix Paug(l, l, 0.);
   Paug.insert(m_Ppred, 0, 0);
   Paug.insert(m_R, m_q, m_q);
   vpMatrix squareRootPaug = ((static_cast<double>(l) + lambda) * Paug).cholesky();
 
-  for (unsigned int i = 0; i < nbSigmaPoints; ++i) {
+  for (unsigned int i = 1; i < nbSigmaPoints; ++i) {
     results.m_wm[i] = commonWeight;
     results.m_wc[i] = commonWeight;
-    if (i < l) {
-      results.m_chis[i] = results.m_muchis + squareRootPaug.getCol(i);
+    if (i <= l) {
+      results.m_chis[i] = results.m_muchis + squareRootPaug.getCol(i - 1);
     }
     else {
-      results.m_chis[i] = results.m_muchis - squareRootPaug.getCol(i - l);
+      results.m_chis[i] = results.m_muchis - squareRootPaug.getCol(i - l - 1);
     }
   }
 
