@@ -28,7 +28,7 @@
  * WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * Description:
- * Display a point cloud using PCL library.
+ * Generic Unscented Kalman Filter.
  */
 
 #ifndef VP_UNSCENTED_KALMAN_H
