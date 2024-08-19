@@ -111,7 +111,7 @@ vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPoi
 
   vpSigmaPointDrawingResult results;
   results.m_chis.resize(nbSigmaPoints);
-  results.m_wc.resize(nbSigmaPoints);
+  results.m_wc.resize(nbSigmaPoints, commonWeight); // All the weights are equal to commonWeight
 
   vpMatrix Paug(2 * m_q, 2 * m_q, 0.);
   Paug.insert(m_Pest, 0, 0);
@@ -119,8 +119,6 @@ vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPoi
   vpMatrix squareRootPaug = ((2. * static_cast<double>(m_q) + lambda) * Paug).cholesky();
 
   for (unsigned int i = 0; i < halfNbSigmaPoints; ++i) {
-    results.m_wc[2*i] = commonWeight;
-    results.m_wc[2*i + 1] = commonWeight;
     results.m_chis[i] = squareRootPaug.getCol(i);
     results.m_chis[halfNbSigmaPoints + i] = -1. * squareRootPaug.getCol(i);
   }
@@ -130,8 +128,12 @@ vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPoi
 void vpUnscentedKalmanPose::unscentedTransformPredict(const vpHomogeneousMatrix &Xprev, const std::vector<vpColVector> &sigmaPoints,
     const std::vector<double> &wc, const vpColVector &omega, const double &dt)
 {
+  // Computation of the constant matrix
+  vpHomogeneousMatrix Omega = vpExponentialMap::direct(omega, dt);
+  vpHomogeneousMatrix OmegaInv = Omega.inverse();
+
   // Computation of the mean
-  m_Xpred = Xprev * vpExponentialMap::direct(omega, dt);
+  m_Xpred = Xprev * Omega;
 
   // Computation of the covariance
   m_Ppred.resize(6, 6, 0.);
@@ -139,7 +141,7 @@ void vpUnscentedKalmanPose::unscentedTransformPredict(const vpHomogeneousMatrix 
   for (size_t i = 0; i < nbSigmaPoints; ++i) {
     vpColVector epsilonj = sigmaPoints[i].extract(0, 6);
     vpColVector wj = sigmaPoints[i].extract(6, 6);
-    vpHomogeneousMatrix epsilon = vpExponentialMap::direct(omega, dt).inverse() * vpExponentialMap::direct(epsilonj, dt) * vpExponentialMap::direct(omega + wj);
+    vpHomogeneousMatrix epsilon = OmegaInv * vpExponentialMap::direct(epsilonj, dt) * vpExponentialMap::direct(omega + wj);
     vpColVector logEpsilon = vpExponentialMap::inverse(epsilon, dt);
     m_Ppred += wc[i] * logEpsilon * logEpsilon.transpose();
   }
