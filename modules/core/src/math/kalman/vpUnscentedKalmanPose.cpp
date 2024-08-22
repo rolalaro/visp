@@ -40,10 +40,11 @@
 
 #if (VISP_CXX_STANDARD >= VISP_CXX_STANDARD_11)
 BEGIN_VISP_NAMESPACE
-vpUnscentedKalmanPose::vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const double &alphaPred, const double &alphaUpdate)
+vpUnscentedKalmanPose::vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const vpColVector &muNoiseMeas, const double &alphaPred, const double &alphaUpdate)
   : m_alphaPredict(alphaPred)
   , m_Q(Q)
   , m_alphaUpdate(alphaUpdate)
+  , m_muNoiseMeas(muNoiseMeas)
   , m_R(R)
 
 { }
@@ -195,8 +196,11 @@ vpUnscentedKalmanPose::vpUnscentedTransformResult vpUnscentedKalmanPose::unscent
   vpUnscentedKalmanPose::vpUnscentedTransformResult result;
   result.m_mu = vpColVector(m_q, 0.);
   result.m_P = vpMatrix(m_q, m_q, 0.);
-  // Computation of the mean of the chi points projected in the measurement space
-  for (unsigned int i = 0; i < nbSigmaPoints; ++i) {
+  // vpColVector z0 = vpExponentialMap::inverse(m_Xpred, dt);
+  // result.m_z.push_back(z0);
+  // result.m_mu += wm[0] * z0;
+// Computation of the mean of the chi points projected in the measurement space
+  for (unsigned int i = /*1*/ 0; i < nbSigmaPoints; ++i) {
     vpColVector epsilon = sigmaPoints[i].extract(0, m_q);
     vpColVector v = sigmaPoints[i].extract(m_q, m_k);
     vpHomogeneousMatrix temp = vpExponentialMap::direct(epsilon, dt) * vpExponentialMap::direct(v, dt);

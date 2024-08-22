@@ -56,10 +56,11 @@ public:
    *
    * \param[in] Q The covariance introduced by performing the prediction step.
    * \param[in] R The covariance introduced by performing the update step.
+   * \param[in] muNoiseMeas The mean of the measurement noise.
    * \param[in] alphaPred The parameter for the drawing of the sigma points during the predict step.
    * \param[in] alphaUpdate The parameter for the drawing of the sigma points during the update step.
    */
-  vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const double &alphaPred, const double &alphaUpdate);
+  vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const vpColVector &muNoiseMeas, const double &alphaPred, const double &alphaUpdate);
 
   /**
    * \brief Set the guess of the initial state and velocity.
@@ -136,6 +137,11 @@ public:
   inline vpHomogeneousMatrix getXpred() const
   {
     return m_Xpred;
+  }
+
+  inline vpColVector getOmega() const
+  {
+    return m_omega;
   }
 
 private:

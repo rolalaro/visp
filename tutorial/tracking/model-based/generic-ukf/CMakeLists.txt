@@ -15,7 +15,7 @@ list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.init")
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.png")
 
 foreach(cpp ${tutorial_cpp})
-  visp_add_target(${cpp})
+  visp_add_target(${cpp} UKFM.cpp)
 
   if(VISP_HAVE_OGRE)
     visp_set_source_file_compile_flag(${cpp} -Wno-unused-parameter -Wno-unused-but-set-parameter -Wno-overloaded-virtual -Wno-float-equal -Wno-deprecated-copy -Wno-register)
