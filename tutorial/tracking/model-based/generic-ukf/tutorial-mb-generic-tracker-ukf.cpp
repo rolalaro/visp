@@ -56,14 +56,29 @@ int main(int argc, char **argv)
   try {
     std::string opt_videoname = "teabox-long.mp4";
     int opt_tracker = vpMbGenericTracker::EDGE_TRACKER;
+    double opt_stdevP0 = 0.0001;
+    double opt_stdevQ = 0.001;
+    double opt_stdevR = 0.000001;
 
     for (int i = 0; i < argc; i++) {
-      if (std::string(argv[i]) == "--name" && i + 1 < argc)
+      if (std::string(argv[i]) == "--name" && i + 1 < argc) {
         opt_videoname = std::string(argv[i + 1]);
-      else if (std::string(argv[i]) == "--tracker" && i + 1 < argc)
+      }
+      else if (std::string(argv[i]) == "--tracker" && i + 1 < argc) {
         opt_tracker = atoi(argv[i + 1]);
+      }
+      else if (std::string(argv[i]) == "--P0" && i + 1 < argc) {
+        opt_stdevP0 = std::atof(argv[i + 1]);
+      }
+      else if (std::string(argv[i]) == "--Q" && i + 1 < argc) {
+        opt_stdevQ = std::atof(argv[i + 1]);
+      }
+      else if (std::string(argv[i]) == "--R" && i + 1 < argc) {
+        opt_stdevR = std::atof(argv[i + 1]);
+      }
       else if (std::string(argv[i]) == "--help" || std::string(argv[i]) == "-h") {
         std::cout << "\nUsage: " << argv[0] << " [--name <video name>] [--tracker <1=egde|2=keypoint|3=hybrid>]"
+          << " [--P0 <stdev_P0>] [--Q <stdev_Q>] [--R <stdev_R>]"
           << " [--help] [-h]\n"
           << std::endl;
         return EXIT_SUCCESS;
@@ -176,12 +191,9 @@ int main(int argc, char **argv)
     vpColVector omega0(6, 0.);
     vpMatrix Id;
     Id.eye(6);
-    const double stdevX0 = 0.1;
-    const double stdevQ = 0.001;
-    const double stdevR = 0.1;
-    vpMatrix P0 = Id * stdevX0 * stdevX0;
-    vpMatrix Q = Id * stdevQ * stdevQ;
-    vpMatrix R = Id * stdevR * stdevR;
+    vpMatrix P0 = Id * opt_stdevP0 * opt_stdevP0;
+    vpMatrix Q = Id * opt_stdevQ * opt_stdevQ;
+    vpMatrix R = Id * opt_stdevR * opt_stdevR;
     double alphaPred = 0.1;
     double alphaUpdate = alphaPred;
     vpColVector muNoiseMeas(6, 0.);
@@ -189,7 +201,7 @@ int main(int argc, char **argv)
     const double dt = 0.040; // 40ms <=> 25Hz
     UKFM::State X0;
     Id.eye(3);
-    vpMatrix R_ukfm = Id * stdevR * stdevR;
+    vpMatrix R_ukfm = Id * opt_stdevR * opt_stdevR;
     UKFM ukf_ukfmImplem(UKFM::ProcessFunction(f), UKFM::ObservationFunction(h), UKFM::RetractationFunction(phi),
                           UKFM::InverseRetractationFunction(phiinv), Q, R_ukfm, std::vector<double>(3, alphaPred), X0, P0);
 
@@ -298,9 +310,8 @@ int main(int argc, char **argv)
       }
 
       ++frame_cpt;
+      t += dt;
       cMo_prev = cMo;
-      ukfm_omega = vpExponentialMap::inverse(ukfm_cMo_prev * ukfm_cMo_filt.inverse(), dt);
-      ukfm_cMo_prev = ukfm_cMo_filt;
     }
     vpDisplay::display(I);
     vpDisplay::displayText(I, 10, 10, "Any click to exit...", vpColor::red);
