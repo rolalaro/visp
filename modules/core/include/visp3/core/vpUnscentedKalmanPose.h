@@ -46,197 +46,216 @@ BEGIN_VISP_NAMESPACE
 /*!
   \class vpUnscentedKalmanPose
   \ingroup group_core_kalman
-  This class permits to use Unscented Kalman Filter (UKF) to tackle pose on SE(3) filtering
+  This class permits to use Unscented Kalman Filter (UKF) to tackle pose on SE(3) filtering.
+  To see the original publication and Python code, please refer to \ref{brossard2019Code}.
 */
 class VISP_EXPORT vpUnscentedKalmanPose
 {
 public:
-  /**
-   * \brief Construct a new vpUnscentedKalmanPose object.
-   *
-   * \param[in] Q The covariance introduced by performing the prediction step.
-   * \param[in] R The covariance introduced by performing the update step.
-   * \param[in] muNoiseMeas The mean of the measurement noise.
-   * \param[in] alphaPred The parameter for the drawing of the sigma points during the predict step.
-   * \param[in] alphaUpdate The parameter for the drawing of the sigma points during the update step.
-   */
-  vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const vpColVector &muNoiseMeas, const double &alphaPred, const double &alphaUpdate);
+  typedef vpHomogeneousMatrix State; /*!< Internal state of the UKF*/
+  typedef std::function<State(const State &, const vpColVector &, const vpColVector &, const double &)> ProcessFunction; /*!< Process fi,ction that projects the state in the future*/
+  typedef std::function<vpColVector(const State &)> ObservationFunction; /*!< Observation function that projects the state in the measurement space.*/
+  typedef std::function<State(const State &, const vpColVector &, const double &)> RetractationFunction; /*!< Retraction function that apply an object that belong to the Lie's algebra \f[ \boldsymbol{v} \in se(3) \f]  to an object \f[ \boldsymbol{\chi} \in SE(3) \f]. */
+  typedef std::function<vpColVector(const State &, const State &, const double &)> InverseRetractationFunction; /*!< Inverse retraction function that belong to the Lie's algebra \f[ \boldsymbol{v} \in se(3) \f]  from objects \f[ \boldsymbol{\chi} , \overline{\boldsymbol{\chi}} \in SE(3) \f].*/
 
   /**
-   * \brief Set the guess of the initial state and velocity.
+   * \brief Construct a new UKFM object.
    *
-   * \param[in] X0 Guess of the initial state.
-   * \param[in] P0 Guess of the initial state covariance matrix.
-   * \param[in] omega0 Guess of the initial velocity.
+   * \param[in] f The process function.
+   * \param[in] h The observation function.
+   * \param[in] phi The retraction function.
+   * \param[in] phi_inv The inverse retraction function.
+   * \param[in] Q The process noise covariance matrix.
+   * \param[in] R The measurement noise covariance matrix.
+   * \param[in] alphas The weights for the computation of the sigma points, such as
+   * alphas[0]: used in predict for the Unscented Transform of the state,
+   * alphas[1]: used in predict for the Unscented Transform of the noise,
+   * alphas[2]: used in update for the Unscented Transform of the state,
+   * \param[in] X0 The initial estimate of the state.
+   * \param[in] P0 The initial estimated state covariance matrix.
    */
-  void init(const vpHomogeneousMatrix &X0, const vpMatrix &P0, const vpColVector &omega0);
+  vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const std::vector<double> &alphas,
+      const State &X0, const vpMatrix &P0, const ProcessFunction &f = fSE3, const ObservationFunction &h = hSE3, const RetractationFunction &phi = phiSE3, const InverseRetractationFunction &phi_inv = phiinvSE3);
 
   /**
-   * \brief Permit to change the covariance introduced at each prediction step.
+   * \brief Performs first a predict step and then an
+   * update step.
    *
-   * \param[in] Q The process covariance matrix.
+   * \param[in] omega The velocity of the object such as v[0..2] = linear velocity and v[3..5] = angular velocity.
+   * \param[in] y The measurements, that correspond to the 3D position of the object.
+   * \param[in] dt The period since the last call to either update or predict.
    */
-  inline void setProcessCovariance(const vpMatrix &Q)
+  void filter(const vpColVector &omega, const vpColVector &y, const double &dt);
+
+  /**
+   * \brief Project the internal state in the future.
+   *
+   * \param[in] omega The velocity of the object such as v[0..2] = linear velocity and v[3..5] = angular velocity.
+   * \param[in] dt The period since the last call to either update or predict.
+   */
+  void predict(const vpColVector &omega, const double &dt);
+
+  /**
+   * \brief Update the internal state of the UKF to get a filtered state based
+   *  on the measurements.
+   *
+   * \param[in] y The measurements, that correspond to the 3D position of the object.
+   * \param dt The period since the last call to either update or predict.
+   */
+  void update(const vpColVector &y, const double &dt);
+
+  /**
+   * \brief Set the initial guess of the state.
+   *
+   * \param[in] X0 The initial guess of the state.
+   */
+  inline void setX0(const State &X0)
   {
-    m_Q = Q;
+    m_state = X0;
   }
 
   /**
-   * \brief Permit to change the covariance introduced at each update step.
+   * \brief Get the filtered state or the predicted state depending
+   * on which between predict and update has been the last call.
    *
-   * \param[in] R The measurement covariance matrix.
+   * @return State
    */
-  inline void setMeasurementCovariance(const vpMatrix &R)
+  inline State getState() const
   {
-    m_R = R;
+    return m_state;
   }
 
   /**
-   * \brief Perform first the prediction step and then the filtering step.
+   * \brief Transform a state into a vpCoLVector that represetns the 3D position.
    *
-   * \param[in] z The new measurement.
-   * \param[in] dt The time in the future we must predict.
+   * \param[in] H The state.
+   * \return vpColVector The 3D postion that corresponds to the state.
    */
-  void filter(const vpColVector &z, const double &dt);
+  static vpColVector asPositionVector(const State &t);
 
   /**
-   * \brief Get the estimated (i.e. filtered) covariance of the state.
+   * \brief Transform a vpTranslationVector into a vpColVector.
    *
-   * \return vpMatrix The filtered covariance matrix.
+   * \param[in] t The translation t that corresponds to a 3D position.
+   * \return vpColVector The corresponding 3D position as a vpColVector.
    */
-  inline vpMatrix getPest() const
-  {
-    return m_Pest;
-  }
+  static vpColVector asColVector(const vpTranslationVector &t);
 
   /**
-   * \brief Get the predicted covariance of the state, i.e. the covariance of the prior.
+   * \brief Default retraction function that apply an object that belong to the Lie's algebra
+   * \f[ \boldsymbol{v} \in se(3) \f]  to an object \f[ \boldsymbol{\chi} \in SE(3) \f] by
+   * left multiplication \f[ \boldsymbol{\chi}_{n + 1} = \boldsymbol{\chi}_{n} exp(\boldsymbol{v}, dt) \f] .
    *
-   * \return vpMatrix The predicted covariance matrix.
+   * \param chi The state to which the object lying on the Lie's algebra must be applied.
+   * \param epsilon The object lying on the Lie's algebra that must be applied.
+   * \param dt The period during which epsilon is applied.
+   * \return State The updated state.
    */
-  inline vpMatrix getPpred() const
-  {
-    return m_Ppred;
-  }
+  static State phiSE3(const State &chi, const vpColVector &epsilon, const double &dt);
 
   /**
-   * \brief Get the estimated (i.e. filtered) state.
+   * \brief Inverse retraction function that belong to the Lie's algebra \f[ \boldsymbol{v} \in se(3) \f]
+   * from objects \f[ \boldsymbol{\chi} , \overline{\boldsymbol{\chi}} \in SE(3) \f] using the logarithm
+   * function \f[ \boldsymbol{v} = log(\boldsymbol{\chi}^{-1} \overline{\boldsymbol{\chi}}) \f]
    *
-   * \return vpHomogeneousMatrix The estimated state.
+   * \param state The state \f[ \boldsymbol{\chi} \f] .
+   * \param hat_state The mean of the state \f[ \overline{\boldsymbol{\chi}} \f] .
+   * \param dt The period of time that corresponds to this displacement.
+   * \return vpColVector The corresponding object in the Lie's algebra.
    */
-  inline vpHomogeneousMatrix getXest() const
-  {
-    return m_Xest;
-  }
+  static vpColVector phiinvSE3(const State &state, const State &hat_state, const double &dt);
 
   /**
-   * \brief Get the predicted state (i.e. the prior).
+   * \brief Default process function such as \f[ \chi_{n + 1} = \chi_{n} exp((\boldsymbol{\Omega} + w)dt) \f].
    *
-   * \return vpColVector The predicted state.
+   * \param[in] state \f[ \chi \f]
+   * \param[in] omega The velocity, such as \f[ \boldsymbol{\Omega} = (\boldsymbol{v}^T \boldsymbol{\omega}^T)^T \in R^6 \f]
+   * \param[in] w The potential noise.
+   * \param[in] dt The period during which is applied the velocity vector.
+   * \return State The updated state.
    */
-  inline vpHomogeneousMatrix getXpred() const
-  {
-    return m_Xpred;
-  }
+  static State fSE3(const State &state, const vpColVector &omega, const vpColVector &w, const double &dt);
 
-  inline vpColVector getOmega() const
-  {
-    return m_omega;
-  }
-
+  /**
+   * \brief The default measurement function such as \f[
+     \boldsymbol{T} = \left[ \begin{array}{cc}
+     \boldsymbol{R} \boldsymbol{t} \\
+     \boldsymbol{0}_ {1 x 3} 1
+     \end{array}\right]
+     , h(\boldsymbol{T}) = \boldsymbol{t} \in R^3\f]
+   *
+   * \param state The internal state of the UKF.
+   * \return vpColVector The 3D position that corresponds to the state.
+   */
+  static vpColVector hSE3(const State &state);
 private:
-  const unsigned int m_q = 6; /*!< Dimension of the state. It is a pose, so it is 6.*/
-  const unsigned int m_k = 6; /*!< Dimension of the measurements. They are poses, so it is 6.*/
-
-  /// Members related to the predict step
-  double m_alphaPredict; /*!< Scale parameter for the sigma points drawing during the prediction step.*/
-  vpColVector m_omega; /*!< The velocity at the current step.*/
-  vpMatrix m_Q; /*!< The covariance introduced by performing the prediction step.*/
-  vpHomogeneousMatrix m_Xpred; /*!< The predicted state, i.e. the mean of the prior.*/
-  vpMatrix m_Ppred; /*!< The covariance matrix of the prior.*/
-
-  /// Members related to the update step
-  double m_alphaUpdate; /*!< Scale parameter for the sigma points drawing during the update step.*/
-  vpColVector m_muNoiseMeas; /*!< The mean of the measurements noise.*/
-  vpMatrix m_R; /*!< The covariance introduced by performing the update step.*/
-  vpMatrix m_Pz; /*!< The covariance matrix of the measurement sigma points.*/
-  vpMatrix m_Pxz; /*!< The cross variance of the state and the measurements.*/
-  vpMatrix m_K; /*!< The Kalman gain.*/
-  vpHomogeneousMatrix m_Xest; /*!< The estimated (i.e. filtered) state variables.*/
-  vpMatrix m_Pest; /*!< The estimated (i.e. filtered) covariance matrix.*/
-
-  /**
-   * \brief Predict the new state based on the last state and how far in time we want to predict.
-   *
-   * \param[in] dt The time in the future we must predict.
-   */
-  void predict(const double &dt);
-
-  /**
-   * \brief Update the estimate of the state based on a new measurement.
-   *
-   * \param[in] z The measurements at the current timestep.
-   * \param[in] dt The period since the last update.
-   */
-  void update(const vpColVector &z, const double &dt);
-
-  /**
-   * \brief Structure that stores the results of the unscented transform.
-   */
-  typedef struct vpSigmaPointDrawingResult
+  struct Weights
   {
-    std::vector<vpColVector> m_chis; /*!< The sigma points.*/
-    vpColVector m_muchis; /*!< The mean of the sigma points.*/
-    std::vector<double> m_wm; /*!< The points for the mean computation.*/
-    std::vector<double> m_wc; /*!< The points for the covariance computation.*/
-  } vpSigmaPointDrawingResult;
+    /**
+     * \brief  Structure that implements a single weight for either the
+     * computation of the mean or a covariance matrix in the Unscented transform.
+     */
+    struct Weight
+    {
+    public:
+      /**
+       * \brief Construct a new Weight object.
+       *
+       * \param[in] size Size of the vector to which the Weight will be applied to.
+       * \param[in] alpha Coefficient to compute the weight.
+       */
+      Weight(const unsigned int &size, const double &alpha)
+      {
+        m_lambda = (alpha * alpha - 1.) * size;
+        m_sqrtLambda = std::sqrt(m_lambda + size);
+        m_wj = 1. / (2. * (size + m_lambda));
+        m_wm = m_lambda / (m_lambda + size);
+        m_w0 = m_lambda / (m_lambda + size) + 3 - alpha * alpha;
+      }
 
-  /**
-   * \brief Draw the sigma points for the predict step.
-   */
-  vpSigmaPointDrawingResult sigmaPointsDrawingPredict();
+      double m_lambda; /*!< The modified coefficient used to compute the weight.*/
+      double m_sqrtLambda; /*!< Square root of the modified coefficient used to compute the weight.*/
+      double m_wj; /*!< Weights that are common for the computation of the mean and covariance matrices.*/
+      double m_wm; /*!< Weight associated to the state for the computation of the mean.*/
+      double m_w0; /*!< Weight associated to the first sigma point for the computation of the covariance matrices.*/
+    };
 
-  /**
-   * \brief Compute the unscented transform of the sigma points, leading
-   * to the new predictions of the state and of the state covariance.
-   *
-   * \param[in] muprev The previous mean.
-   * \param[in] sigmaPoints The sigma points we consider.
-   * \param[in] wc The weights to apply for the covariance computation.
-   * \param[in] omega The velocity at the current step.
-   * \param[in] dt The ellapsed time since the last call.
-   */
-  void unscentedTransformPredict(const vpHomogeneousMatrix &muprev, const std::vector<vpColVector> &sigmaPoints,
-    const std::vector<double> &wc, const vpColVector &omega, const double &dt);
+    Weight m_d; /*!< Predict w.r.t. state weights*/
+    Weight m_q; /*!< Predict w.r.t. noise weights*/
+    Weight m_u; /*!< Update w.r.t. state weights*/
 
-  /**
-   * \brief Draw the sigma points for the update step.
-   *
-   * \return vpSigmaPointDrawingResult The sigma points along with other useful info.
-   */
-  vpSigmaPointDrawingResult sigmaPointsDrawingUpdate();
+    /**
+     * \brief Construct a new Weights object
+     *
+     * \param[in] d The size of the state.
+     * \param[in] q The size of the noise.
+     * \param[in] alphas The coefficients used to compute the weights, such as
+     * alphas[0]: used in predict for the Unscented Transform of the state,
+     * alphas[1]: used in predict for the Unscented Transform of the noise,
+     * alphas[2]: used in update for the Unscented Transform of the state.
+     */
+    Weights(const unsigned int &d, const unsigned int &q, const std::vector<double> &alphas)
+      : m_d(d, alphas[0])
+      , m_q(q, alphas[1])
+      , m_u(d, alphas[2])
+    { }
+  };
 
-  /**
-   * \brief Structure that stores the results of the unscented transform.
-   */
-  typedef struct vpUnscentedTransformUpdateResult
-  {
-    vpColVector m_mu; /*!< The mean of the chi points.*/
-    std::vector<vpColVector> m_z; /*!< The chi points projected in the measurement space.*/
-    vpMatrix m_P; /*!< The covariance matrix \f$P_{zz}\f$.*/
-  } vpUnscentedTransformResult;
-
-  /**
-   * \brief Compute the unscented transform of the sigma points.
-   *
-   * \param[in] sigmaPoints The sigma points we consider.
-   * \param[in] wm The weights to apply for the mean computation.
-   * \param[in] wc The weights to apply for the covariance computation.
-   * \param[in] dt The period since the last update.
-   * \return vpUnscentedTransformResult The mean and covariance of the sigma points.
-   */
-  vpUnscentedTransformResult unscentedTransformUpdate(const std::vector<vpColVector> &sigmaPoints,
-    const std::vector<double> &wm, const std::vector<double> &wc, const double &dt);
+  static const double TOL; /*!< tolerance parameter (avoid numerical issue)*/
+  ProcessFunction m_f; /*!< Process function that projects the state in the future.*/
+  ObservationFunction m_h; /*!< Observation function that projects the state in the measurement space.*/
+  RetractationFunction m_phi; /*!< Retraction function.*/
+  InverseRetractationFunction m_phiinv; /*!< Inverse retraction function.*/
+  vpMatrix m_Q; /*!< State noise covariance matrix.*/
+  vpMatrix m_R; /*!< Measurement covariance matrix.*/
+  vpMatrix m_P; /*!< State covariance matrix.*/
+  State m_state; /*!< Estimated state.*/
+  vpMatrix m_cholQ; /*!< Cholesky's decomposition of the Q matrix ~= its square root*/
+  unsigned int m_d; /*!< Size of the state.*/
+  unsigned int m_q; /*!< Size of the noise.*/
+  unsigned int m_l; /*!< Size of the measurements.*/
+  vpMatrix m_Id_d; /*!< Identity matrix of size d*/
+  Weights m_weights; /*!< Weights used for the Unscented Transform.*/
 };
 END_VISP_NAMESPACE
 #endif

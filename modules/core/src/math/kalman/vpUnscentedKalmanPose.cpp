@@ -40,182 +40,191 @@
 
 #if (VISP_CXX_STANDARD >= VISP_CXX_STANDARD_11)
 BEGIN_VISP_NAMESPACE
-vpUnscentedKalmanPose::vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const vpColVector &muNoiseMeas, const double &alphaPred, const double &alphaUpdate)
-  : m_alphaPredict(alphaPred)
+const double  vpUnscentedKalmanPose::TOL = 1e-9;
+
+vpUnscentedKalmanPose::vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const std::vector<double> &alphas,
+      const State &X0, const vpMatrix &P0,
+      const ProcessFunction &f, const ObservationFunction &h,
+      const RetractationFunction &phi, const InverseRetractationFunction &phi_inv)
+  : m_f(f)
+  , m_h(h)
+  , m_phi(phi)
+  , m_phiinv(phi_inv)
   , m_Q(Q)
-  , m_alphaUpdate(alphaUpdate)
-  , m_muNoiseMeas(muNoiseMeas)
   , m_R(R)
-
-{ }
-
-void vpUnscentedKalmanPose::init(const vpHomogeneousMatrix &X0, const vpMatrix &P0, const vpColVector &omega0)
+  , m_P(P0)
+  , m_state(X0)
+  , m_weights(P0.getRows(), Q.getRows(), alphas)
 {
-  if ((m_Q.getCols() != P0.getCols()) || (m_Q.getRows() != P0.getRows())) {
-    throw(vpException(vpException::dimensionError, "Initial process covariance matrix P0 and Q matrix sizes mismatch"));
-  }
-  m_Xpred = X0;
-  m_Ppred = P0;
-  m_Xest = X0;
-  m_Pest = P0;
-  m_omega = omega0;
+  m_cholQ = Q.cholesky().transpose();
+  m_d = P0.getRows();
+  m_q = Q.getRows();
+  m_l = R.getRows();
+  m_Id_d.eye(m_d);
 }
 
-void vpUnscentedKalmanPose::filter(const vpColVector &z, const double &dt)
+void vpUnscentedKalmanPose::filter(const vpColVector &omega, const vpColVector &y, const double &dt)
 {
-  predict(dt);
-  update(z, dt);
+  predict(omega, dt);
+  update(y, dt);
 }
 
-void vpUnscentedKalmanPose::predict(const double &dt)
+void vpUnscentedKalmanPose::predict(const vpColVector &omega, const double &dt)
 {
-  // Drawing the sigma points and associated weights
-  vpSigmaPointDrawingResult sigmaPoints = sigmaPointsDrawingPredict();
+  vpMatrix P = m_P + TOL * m_Id_d;
 
-  // Computation of the mean and covariance of the prior
-  unscentedTransformPredict(m_Xest, sigmaPoints.m_chis, sigmaPoints.m_wc, m_omega, dt);
+  // Update mean
+  vpColVector w(m_q, 0.);
+  State newState = m_f(m_state, omega, w, dt);
+
+  // // Compute covariance w.r.t state uncertainty
+  Weights::Weight w_d = m_weights.m_d;
+
+  // Set sigma points
+  vpMatrix xis = w_d.m_sqrtLambda * P.cholesky().transpose();
+  std::vector<vpColVector> newXis(2*m_d, vpColVector(m_d, 0.));
+
+  // Retract  sigma points onto the manifold
+  vpColVector mean(m_d, 0.);
+  for (unsigned int j = 0; j < m_d; ++j) {
+    State s_j_p = m_phi(m_state, xis.getRow(j).transpose(), dt);
+    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose(), dt);
+    State new_s_j_p = m_f(s_j_p, omega, w, dt);
+    State new_s_j_m = m_f(s_j_m, omega, w, dt);
+    newXis[j] = m_phiinv(newState, new_s_j_p, dt);
+    newXis[j + m_d] = m_phiinv(newState, new_s_j_m, dt);
+    mean += newXis[j] * w_d.m_wj;
+    mean += newXis[j + m_d] * w_d.m_wj;
+  }
+
+  // Compute covariance
+  vpMatrix newP = w_d.m_w0 * (mean * mean.transpose());
+  for (unsigned int j = 0; j < m_d; ++j) {
+    newXis[j] = newXis[j] - mean;
+    newXis[j + m_d] = newXis[j + m_d] - mean;
+    newP += w_d.m_wj * (newXis[j] * newXis[j].transpose());
+    newP += w_d.m_wj * (newXis[j + m_d] * newXis[j + m_d].transpose());
+  }
+
+  // // Compute covariance w.r.t. noise
+  Weights::Weight w_q = m_weights.m_q;
+  std::vector<vpColVector> newXisNoise(2 * m_q, vpColVector(m_q, 0.));
+
+  // Retract sigma points onto the manifold
+  vpColVector meanNoise(m_q, 0.);
+  for (unsigned int j = 0; j < m_q; ++j) {
+    vpColVector w_p = w_q.m_sqrtLambda * m_cholQ.getRow(j).transpose();
+    vpColVector w_m = -1. * w_q.m_sqrtLambda * m_cholQ.getRow(j).transpose();
+    State new_s_j_p = m_f(m_state, omega, w_p, dt);
+    State new_s_j_m = m_f(m_state, omega, w_m, dt);
+    newXisNoise[j] = m_phiinv(newState, new_s_j_p, dt);
+    newXisNoise[j + m_q] = m_phiinv(newState, new_s_j_m, dt);
+    meanNoise += w_q.m_wj * newXisNoise[j];
+    meanNoise += w_q.m_wj * newXisNoise[j + m_q];
+  }
+
+  // Compute covariance
+  vpMatrix Q = w_q.m_w0 * (meanNoise * meanNoise.transpose());
+  for (unsigned int j = 0; j < m_q; ++j) {
+    newXisNoise[j] = newXisNoise[j] - meanNoise;
+    newXisNoise[j + m_q] = newXisNoise[j + m_q] - meanNoise;
+    Q = w_q.m_wj * (newXisNoise[j] * newXisNoise[j].transpose());
+    Q = w_q.m_wj * (newXisNoise[j + m_q] * newXisNoise[j + m_q].transpose());
+  }
+
+  // // Update covariance and state
+  m_P = newP + Q;
+  m_state = newState;
 }
 
-void vpUnscentedKalmanPose::update(const vpColVector &z, const double &dt)
+void vpUnscentedKalmanPose::update(const vpColVector &y, const double &dt)
 {
-  // Drawing of the sigma points for the update step
-  vpSigmaPointDrawingResult sigmaPoints = sigmaPointsDrawingUpdate();
 
-  // Computation of the mean and covariance of the prior expressed in the measurement space
-  vpUnscentedTransformResult transformResults = unscentedTransformUpdate(sigmaPoints.m_chis, sigmaPoints.m_wm, sigmaPoints.m_wc, dt);
-  m_Pz = transformResults.m_P;
+  vpMatrix P = m_P + TOL * m_Id_d;
 
-  // Computation of cross covariance
-  m_Pxz = sigmaPoints.m_wc[0] *(sigmaPoints.m_chis[0] - sigmaPoints.m_muchis) * (transformResults.m_z[0] - transformResults.m_mu).transpose();
-  size_t nbPts = sigmaPoints.m_wc.size();
-  for (size_t i = 1; i < nbPts; ++i) {
-    m_Pxz += sigmaPoints.m_wc[i] *(sigmaPoints.m_chis[i] - sigmaPoints.m_muchis) * (transformResults.m_z[i] - transformResults.m_mu).transpose();
+  // Set sigma points
+  Weights::Weight w_d = m_weights.m_d;
+  vpMatrix Pchol = P.cholesky();
+  vpMatrix xis = w_d.m_sqrtLambda * Pchol.transpose();
+
+  // // Compute measurement sigma points
+  vpMatrix ys(2 * m_d, m_l, 0.);
+  vpColVector hat_y = m_h(m_state); // State projected in the observation space
+  vpColVector y_bar = w_d.m_wm * hat_y; // Measurement mean
+  for (unsigned int j = 0; j < m_d; ++j) {
+    State s_j_p = m_phi(m_state, xis.getRow(j).transpose(), dt);
+    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose(), dt);
+    vpColVector h_sjp = m_h(s_j_p);
+    vpColVector h_sjm = m_h(s_j_m);
+    ys.insert(h_sjp.transpose(), j, 0);
+    ys.insert(h_sjm.transpose(), j + m_d, 0);
+    y_bar += w_d.m_wj * ys.getRow(j).transpose();
+    y_bar += w_d.m_wj * ys.getRow(j + m_d).transpose();
   }
 
-  // Computation of the Kalman gain
-  m_K = m_Pxz * m_Pz.inverseByCholesky();
+  // Prune mean before computing covariance
+  hat_y = hat_y - y_bar;
 
-  // Updating the estimate
-  vpColVector temp = m_K * (z - transformResults.m_mu);
-  vpColVector epsilon = temp.extract(0, m_q);
-  m_omega = epsilon;
-  m_Xest = m_Xpred * vpExponentialMap::direct(epsilon, dt);
-  // m_Pest = m_Ppred - m_K * m_Pz * m_K.transpose(); // Cannot be computed as m_K is of incorrect dimension
-  vpMatrix Ktemp = m_K.extract(0, 0, m_q, m_q); // Hack to solve the issue stated above
-  m_Pest = m_Ppred - Ktemp * m_Pz * Ktemp.transpose();
+  // Covariance computation
+  vpMatrix temp(xis.getRows(), 2 * xis.getCols());
+  temp.insert(xis, 0, 0);
+  temp.insert(-1. * xis, 0, xis.getCols());
+  vpMatrix Pxiy = w_d.m_wj * temp * ys;
+  vpMatrix Pyy = w_d.m_w0 * (hat_y * hat_y.transpose()) + m_R;
+  for (unsigned int j = 0; j < m_d; ++j) {
+    Pyy += w_d.m_wj * (ys.getRow(j).transpose() * ys.getRow(j));
+    Pyy += w_d.m_wj * (ys.getRow(j + m_d).transpose() * ys.getRow(j + m_d));
+  }
+
+  // Kalman gain
+  vpMatrix K = Pxiy * Pyy.inverseByCholesky();
+
+  // Update state
+  vpColVector xiPlus = K * (y - y_bar);
+  m_state = m_phi(m_state, xiPlus, dt);
+
+  // Update covariance
+  m_P = P - K * Pyy * K.transpose();
+
+  // Avoid non-symmetric matrix
+  m_P = (m_P + m_P.transpose()) / 2.;
 }
 
-vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPointsDrawingPredict()
+vpColVector vpUnscentedKalmanPose::asPositionVector(const State &H)
 {
-  const double lambda = ((m_alphaPredict * m_alphaPredict)- 1.) * 2. * static_cast<double>(m_q);
-  const unsigned int nbSigmaPoints = 4 * m_q;
-  const unsigned int halfNbSigmaPoints = nbSigmaPoints / 2;
-  const double commonWeight = 0.5/(lambda + 2 * m_q);
-
-  vpSigmaPointDrawingResult results;
-  results.m_chis.resize(nbSigmaPoints);
-  results.m_wc.resize(nbSigmaPoints, commonWeight); // All the weights are equal to commonWeight
-
-  vpMatrix Paug(2 * m_q, 2 * m_q, 0.);
-  Paug.insert(m_Pest, 0, 0);
-  Paug.insert(m_Q, m_q, m_q);
-  vpMatrix squareRootPaug = ((2. * static_cast<double>(m_q) + lambda) * Paug).cholesky();
-
-  for (unsigned int i = 0; i < halfNbSigmaPoints; ++i) {
-    results.m_chis[i] = squareRootPaug.getCol(i);
-    results.m_chis[halfNbSigmaPoints + i] = -1. * squareRootPaug.getCol(i);
-  }
-  return results;
+  vpTranslationVector t = H.getTranslationVector();
+  return asColVector(t);
 }
 
-void vpUnscentedKalmanPose::unscentedTransformPredict(const vpHomogeneousMatrix &Xprev, const std::vector<vpColVector> &sigmaPoints,
-    const std::vector<double> &wc, const vpColVector &omega, const double &dt)
+vpColVector vpUnscentedKalmanPose::asColVector(const vpTranslationVector &t)
 {
-  // Computation of the constant matrix
-  vpHomogeneousMatrix Omega = vpExponentialMap::direct(omega, dt);
-  vpHomogeneousMatrix OmegaInv = Omega.inverse();
-
-  // Computation of the mean
-  m_Xpred = Xprev * Omega;
-
-  // Computation of the covariance
-  m_Ppred.resize(6, 6, 0.);
-  size_t nbSigmaPoints = sigmaPoints.size();
-  for (size_t i = 0; i < nbSigmaPoints; ++i) {
-    vpColVector epsilonj = sigmaPoints[i].extract(0, 6);
-    vpColVector wj = sigmaPoints[i].extract(6, 6);
-    vpHomogeneousMatrix epsilon = OmegaInv * vpExponentialMap::direct(epsilonj, dt) * vpExponentialMap::direct(omega + wj);
-    vpColVector logEpsilon = vpExponentialMap::inverse(epsilon, dt);
-    m_Ppred += wc[i] * logEpsilon * logEpsilon.transpose();
-  }
+  vpColVector tAsVec(3);
+  tAsVec[0] = t[0];
+  tAsVec[1] = t[1];
+  tAsVec[2] = t[2];
+  return tAsVec;
 }
 
-vpUnscentedKalmanPose::vpSigmaPointDrawingResult vpUnscentedKalmanPose::sigmaPointsDrawingUpdate()
+vpUnscentedKalmanPose::State vpUnscentedKalmanPose::phiSE3(const vpUnscentedKalmanPose::State &chi, const vpColVector &epsilon, const double &dt)
 {
-  const unsigned int l = m_q + m_k;
-  const double lambda = ((m_alphaUpdate * m_alphaUpdate)- 1.) * static_cast<double>(l);
-  const unsigned int nbSigmaPoints = 2 * l + 1;
-  const double commonWeight = 0.5/(lambda + static_cast<double>(l));
-
-  vpSigmaPointDrawingResult results;
-  results.m_chis.resize(nbSigmaPoints);
-  results.m_wm.resize(nbSigmaPoints);
-  results.m_wc.resize(nbSigmaPoints);
-  results.m_wm[0] = lambda / (lambda + static_cast<double>(l));
-  results.m_wc[0] = (lambda / (lambda + static_cast<double>(l))) + (3. - m_alphaUpdate * m_alphaUpdate);
-  results.m_muchis = vpColVector(l, 0.);
-  results.m_muchis.insert(m_q, m_muNoiseMeas);
-  results.m_chis[0] = results.m_muchis;
-
-  vpMatrix Paug(l, l, 0.);
-  Paug.insert(m_Ppred, 0, 0);
-  Paug.insert(m_R, m_q, m_q);
-  vpMatrix squareRootPaug = ((static_cast<double>(l) + lambda) * Paug).cholesky();
-
-  for (unsigned int i = 1; i < nbSigmaPoints; ++i) {
-    results.m_wm[i] = commonWeight;
-    results.m_wc[i] = commonWeight;
-    if (i <= l) {
-      results.m_chis[i] = results.m_muchis + squareRootPaug.getCol(i - 1);
-    }
-    else {
-      results.m_chis[i] = results.m_muchis - squareRootPaug.getCol(i - l - 1);
-    }
-  }
-
-  return results;
+  vpUnscentedKalmanPose::State expEpsilon = vpExponentialMap::direct(epsilon, dt);
+  return chi * expEpsilon;
 }
 
-vpUnscentedKalmanPose::vpUnscentedTransformResult vpUnscentedKalmanPose::unscentedTransformUpdate(
-  const std::vector<vpColVector> &sigmaPoints,
-  const std::vector<double> &wm, const std::vector<double> &wc,
-  const double &dt
-)
+vpColVector vpUnscentedKalmanPose::phiinvSE3(const vpUnscentedKalmanPose::State &state, const vpUnscentedKalmanPose::State &hat_state, const double &dt)
 {
-  const unsigned int nbSigmaPoints = sigmaPoints.size();
-  vpUnscentedKalmanPose::vpUnscentedTransformResult result;
-  result.m_mu = vpColVector(m_q, 0.);
-  result.m_P = vpMatrix(m_q, m_q, 0.);
-  // vpColVector z0 = vpExponentialMap::inverse(m_Xpred, dt);
-  // result.m_z.push_back(z0);
-  // result.m_mu += wm[0] * z0;
-// Computation of the mean of the chi points projected in the measurement space
-  for (unsigned int i = /*1*/ 0; i < nbSigmaPoints; ++i) {
-    vpColVector epsilon = sigmaPoints[i].extract(0, m_q);
-    vpColVector v = sigmaPoints[i].extract(m_q, m_k);
-    vpHomogeneousMatrix temp = vpExponentialMap::direct(epsilon, dt) * vpExponentialMap::direct(v, dt);
-    vpColVector z = vpExponentialMap::inverse(temp, dt);
-    result.m_z.push_back(z);
-    result.m_mu += wm[i] * z;
-  }
+  return vpExponentialMap::inverse(state.inverse() * hat_state, dt);
+}
 
-  // Computation of the state covariance P_{zz}
-  for (unsigned int i = 0; i < nbSigmaPoints; ++i) {
-    vpColVector diff = result.m_z[i] - result.m_mu;
-    result.m_P += wc[i] * diff * diff.transpose();
-  }
+vpUnscentedKalmanPose::State vpUnscentedKalmanPose::fSE3(const vpUnscentedKalmanPose::State &state, const vpColVector &omega, const vpColVector &w, const double &dt)
+{
+  return state * vpExponentialMap::direct(omega + w, dt);
+}
 
-  return result;
+vpColVector vpUnscentedKalmanPose::hSE3(const vpUnscentedKalmanPose::State &state)
+{
+  vpColVector pAsVec = asPositionVector(state);
+  return pAsVec;
 }
 END_VISP_NAMESPACE
 #else
