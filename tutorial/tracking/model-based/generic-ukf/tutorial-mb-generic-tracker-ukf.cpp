@@ -6,6 +6,7 @@
 #include <visp3/gui/vpDisplayGDI.h>
 #include <visp3/gui/vpDisplayOpenCV.h>
 #include <visp3/gui/vpDisplayX.h>
+#include <visp3/gui/vpPlot.h>
 #include <visp3/io/vpImageIo.h>
 //! [Include]
 #include <visp3/mbt/vpMbGenericTracker.h>
@@ -209,12 +210,29 @@ int main(int argc, char **argv)
     bool stepbystep = true;
     int frame_cpt = 0;
     vpHomogeneousMatrix cMo_prev, cMo_filt;
-    vpHomogeneousMatrix ukfm_cMo_prev, ukfm_cMo_filt;
-    vpColVector ukfm_omega;
+    vpHomogeneousMatrix ukfm_cMo_filt;
     bool doesContinue = true;
     vpCameraParameters cam;
-    while ((!g.end()) && doesContinue) {
+    vpPlot plot(3, 700, 700, I.getCols() + 50, 50, "Comparing 3D position");
+    plot.initGraph(0, 3);
+    plot.initGraph(1, 3);
+    plot.initGraph(2, 3);
+    plot.setTitle(0, "cMo");
+    plot.setLegend(0, 0, "X");
+    plot.setLegend(0, 1, "Y");
+    plot.setLegend(0, 2, "Z");
+    plot.setTitle(1, "UKF");
+    plot.setLegend(1, 0, "X");
+    plot.setLegend(1, 1, "Y");
+    plot.setLegend(1, 2, "Z");
+    plot.setTitle(2, "UKFM");
+    plot.setLegend(2, 0, "X");
+    plot.setLegend(2, 1, "Y");
+    plot.setLegend(2, 2, "Z");
+    double t = 0.;
+    while ((!g.end()) &&  doesContinue) {
       g.acquire(I);
+
       vpDisplay::display(I);
       //! [Track]
       tracker.track(I);
@@ -224,63 +242,24 @@ int main(int argc, char **argv)
       tracker.getPose(cMo);
       //! [Get pose]
 
-      vpColVector z(6, 0.);
+      vpColVector v(6, 0.);
       if (frame_cpt == 0) {
         ukf.init(cMo, P0, omega0);
         ukf_ukfmImplem.setX0(cMo);
-        ukfm_cMo_prev = cMo;
-        ukfm_omega = omega0;
       }
       else {
-        z = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), dt);
+        v = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), dt);
       }
-      ukf.filter(z, dt);
+      ukf.filter(v, dt);
       cMo_filt = ukf.getXest();
 
-      ukf_ukfmImplem.propagation(z, dt);
+      ukf_ukfmImplem.predict(v, dt);
       ukf_ukfmImplem.update(asColVector(cMo.getTranslationVector()), dt);
-      ukfm_cMo_filt = ukf_ukfmImplem.getXest();
+      ukfm_cMo_filt = ukf_ukfmImplem.getState();
 
-      std::cout << "iter: " << frame_cpt << " cMo:\n" << cMo << std::endl;
-      std::cout << "z = [" << z.transpose() << "]" << std::endl;
-      std::cout << "\tcMo_ukfm:" << std::endl;
-      for (unsigned int i = 0; i < 4; ++i) {
-        std::cout << "\t\t";
-        for (unsigned int j = 0; j < 3; ++j) {
-          std::cout << ukfm_cMo_filt[i][j] << " ; ";
-        }
-        std::cout << ukfm_cMo_filt[i][3] << std::endl;
-      }
-      std::cout << "\t-> Error_ukfm:" << std::endl;
-      vpHomogeneousMatrix cMcukfm = cMo * ukfm_cMo_filt.inverse();
-      vpTranslationVector cTcukfm = cMcukfm.getTranslationVector();
-      vpRxyzVector cRcukfm = vpRxyzVector(cMcukfm.getRotationMatrix());
-      std::cout << "\t\t" << cTcukfm[0] * 1000. << " ; " << cTcukfm[1] * 1000. << " ; " << cTcukfm[2] * 1000. << " [mm]\n";
-      std::cout << "\t\t" << vpMath::deg(cRcukfm).transpose() << " [deg]\n";
-      std::cout << "\tcMo_filt:" << std::endl;
-      for (unsigned int i = 0; i < 4; ++i) {
-        std::cout << "\t\t";
-        for (unsigned int j = 0; j < 3; ++j) {
-          std::cout << cMo_filt[i][j] << " ; ";
-        }
-        std::cout << cMo_filt[i][3] << std::endl;
-      }
-      std::cout << "\t->Error:" << std::endl;
-      vpHomogeneousMatrix cMcfilt = cMo * cMo_filt.inverse();
-      vpTranslationVector cTcfilt = cMcfilt.getTranslationVector();
-      vpRxyzVector cRcfilt = vpRxyzVector(cMcfilt.getRotationMatrix());
-      std::cout << "\t\t" << cTcfilt[0] * 1000. << " ; " << cTcfilt[1] * 1000. << " ; " << cTcfilt[2] * 1000. << " [mm]\n";
-      std::cout << "\t\t" << vpMath::deg(cRcfilt).transpose() << " [deg]\n";
-      if (frame_cpt > 0) {
-        vpColVector velocity = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), dt);
-        vpColVector filteredVelocity = ukf.getOmega();
-        std::cout << "velocity = " <<  velocity.extract(0, 3).transpose() * 1000.f << " [mm/s]; " << vpMath::deg(velocity.extract(3, 3)).transpose() << " [deg/s]"  << std::endl;
-        std::cout << "\tvelocity_filt = " <<  filteredVelocity.extract(0, 3).transpose() * 1000.f << " [mm/s]; " << vpMath::deg(filteredVelocity.extract(3, 3)).transpose() << " [deg/s]"  << std::endl;
-        std::cout << "Error on the velocity:\n";
-        vpColVector errorVel = velocity - filteredVelocity;
-        std::cout << "\t\t" << errorVel[0] * 1000.f << " ; " << errorVel[1] * 1000.f << " ; " << errorVel[2] * 1000.f << " [mm/s]" << std::endl;
-        std::cout << "\t\t" << vpMath::deg(errorVel[3]) << " ; " << vpMath::deg(errorVel[4]) << " ; " << vpMath::deg(errorVel[5]) << " [deg/s]" << std::endl;
-      }
+      plot.plot(0, t, cMo.getTranslationVector());
+      plot.plot(1, t, cMo_filt.getTranslationVector());
+      plot.plot(2, t, ukfm_cMo_filt.getTranslationVector());
 
       //! [Display]
       tracker.getCameraParameters(cam);
