@@ -58,9 +58,15 @@ void UKFM::propagation(const vpColVector &omega, const double &dt)
   vpMatrix P = m_P + TOL * m_Id_d;
 
   // Update mean
-  // log("UKFM::propagation", "\tUpdating mean ...");
+  log("UKFM::propagation", "\tUpdating mean ...");
   vpColVector w(m_q, 0.);
+  log("UKFM::propagation", "\t\tOmega:");
+  logMat(omega.transpose(), 2);
+  log("UKFM::propagation", "\t\tPrevious state:");
+  logMat(m_state, 2);
   State newState = m_f(m_state, omega, w, dt);
+  log("UKFM::propagation", "\t\tUpdated state:");
+  logMat(m_state, 2);
 
   // // Compute covariance w.r.t state uncertainty
   // log("UKFM::propagation", "\tComputing cov w.r.t. state ...");
@@ -78,12 +84,12 @@ void UKFM::propagation(const vpColVector &omega, const double &dt)
   // log("UKFM::propagation", "\t\t->Retracting chis ...");
   vpColVector mean(m_d, 0.);
   for (unsigned int j = 0; j < m_d; ++j) {
-    State s_j_p = m_phi(m_state, xis.getRow(j).transpose());
-    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose());
+    State s_j_p = m_phi(m_state, xis.getRow(j).transpose(), dt);
+    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose(), dt);
     State new_s_j_p = m_f(s_j_p, omega, w, dt);
     State new_s_j_m = m_f(s_j_m, omega, w, dt);
-    newXis[j] = m_phiinv(newState, new_s_j_p);
-    newXis[j + m_d] = m_phiinv(newState, new_s_j_m);
+    newXis[j] = m_phiinv(newState, new_s_j_p, dt);
+    newXis[j + m_d] = m_phiinv(newState, new_s_j_m, dt);
     mean += newXis[j] * w_d.m_wj;
     mean += newXis[j + m_d] * w_d.m_wj;
   }
@@ -107,20 +113,34 @@ void UKFM::propagation(const vpColVector &omega, const double &dt)
 
   // Retract sigma points onto the manifold
   // log("UKFM::propagation", "\t\t->Retracting chis ...");
+  // log("UKFM::propagation", "\t\t\t-> cholQ = ");
+  logMat(m_cholQ, 3);
   vpColVector meanNoise(m_q, 0.);
   for (unsigned int j = 0; j < m_q; ++j) {
     vpColVector w_p = w_q.m_sqrtLambda * m_cholQ.getRow(j).transpose();
     vpColVector w_m = -1. * w_q.m_sqrtLambda * m_cholQ.getRow(j).transpose();
+    // log("UKFM::propagation", std::string("\t\t\t-> w_p[") + std::to_string(j) + std::string("] = ") + toString(w_p));
+    // log("UKFM::propagation", std::string("\t\t\t-> w_m[") + std::to_string(j) + std::string("] = ") + toString(w_m));
     State new_s_j_p = m_f(m_state, omega, w_p, dt);
     State new_s_j_m = m_f(m_state, omega, w_m, dt);
-    newXisNoise[j] = m_phiinv(newState, new_s_j_p);
-    newXisNoise[j + m_q] = m_phiinv(newState, new_s_j_m);
+    // log("UKFM::propagation", "\t\t\t-> new_s_j_p = ");
+    // logMat(new_s_j_p, 3);
+    // log("UKFM::propagation", "\t\t\t-> new_s_j_m = ");
+    // logMat(new_s_j_m, 3);
+    newXisNoise[j] = m_phiinv(newState, new_s_j_p, dt);
+    newXisNoise[j + m_q] = m_phiinv(newState, new_s_j_m, dt);
+    // log("UKFM::propagation", std::string("\t\t\t-> newXisNoise[") + std::to_string(j) + std::string("] = "));
+    // logMat(newXisNoise[j].transpose(), 3);
+    // log("UKFM::propagation", std::string("\t\t\t-> newXisNoise[") + std::to_string(j + m_q) + std::string("] = "));
+    // logMat(newXisNoise[j + m_q].transpose(), 3);
+    // log("UKFM::propagation", std::string("\t\t\t-> w_q.m_wj = ") + std::to_string(w_q.m_wj));
     meanNoise += w_q.m_wj * newXisNoise[j];
     meanNoise += w_q.m_wj * newXisNoise[j + m_q];
   }
 
   // Compute covariance
   // log("UKFM::propagation", "\t\t->Computing cov ...");
+  // log("UKFM::propagation", std::string("\t\t\t-> meanNoise = ") + toString(meanNoise));
   vpMatrix Q = w_q.m_w0 * (meanNoise * meanNoise.transpose());
   for (unsigned int j = 0; j < m_q; ++j) {
     newXisNoise[j] = newXisNoise[j] - meanNoise;
@@ -130,17 +150,19 @@ void UKFM::propagation(const vpColVector &omega, const double &dt)
   }
 
   // // Update covariance and state
-  // log("UKFM::propagation", "\tUpdating ...");
+  log("UKFM::propagation", "\tUpdating ...");
   // log("UKFM::propagation", "\t\tnewP = ");
   // logMat(newP, 2);
   // log("UKFM::propagation", "\t\tQ = ");
   // logMat(Q, 2);
   m_P = newP + Q;
   m_state = newState;
+  log("UKFM::propagation", "\t\tnewState = ");
+  logMat(newState, 2);
   // log("UKFM::propagation", "Done !");
 }
 
-void UKFM::update(const vpColVector &y)
+void UKFM::update(const vpColVector &y, const double &dt)
 {
   // log("UKFM::update", "Begin ...");
   // log("UKFM::update", "\t\tP = ");
@@ -169,8 +191,8 @@ void UKFM::update(const vpColVector &y)
   // logMat(xis, 2);
   for (unsigned int j = 0; j < m_d; ++j) {
     // log("UKFM::update", "\t\tComputing retraction of sigma points ...");
-    State s_j_p = m_phi(m_state, xis.getRow(j).transpose());
-    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose());
+    State s_j_p = m_phi(m_state, xis.getRow(j).transpose(), dt);
+    State s_j_m = m_phi(m_state, -1. * xis.getRow(j).transpose(), dt);
     // log("UKFM::update", "\t\tInserting  in ys ...");
     vpColVector h_sjp = m_h(s_j_p);
     // log("UKFM::update", std::string("\t\th(sjp)[") + std::to_string(j) + std::string(" ] = ") + toString(h_sjp));
@@ -210,9 +232,11 @@ void UKFM::update(const vpColVector &y)
   vpMatrix K = Pxiy * Pyy.inverseByCholesky();
 
   // Update state
-  // log("UKFM::update", "\tUpdating state ...");
+  log("UKFM::update", "\tUpdating state ...");
   vpColVector xiPlus = K * (y - y_bar);
-  m_state = m_phi(m_state, xiPlus);
+  m_state = m_phi(m_state, xiPlus, dt);
+  log("UKFM::update", "\t\txiPlus = ");
+  logMat(xiPlus, 2);
 
   // Update covariance
   // log("UKFM::update", "\tUpdating cov ...");

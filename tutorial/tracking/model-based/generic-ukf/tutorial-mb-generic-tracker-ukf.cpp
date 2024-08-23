@@ -27,15 +27,15 @@ vpColVector asColVector(const vpTranslationVector &t)
   return tAsVec;
 }
 
-UKFM::State phi(const UKFM::State &xi, const vpColVector &epsilon)
+UKFM::State phi(const UKFM::State &xi, const vpColVector &epsilon, const double &dt)
 {
-  UKFM::State expEpsilon = vpExponentialMap::direct(epsilon);
+  UKFM::State expEpsilon = vpExponentialMap::direct(epsilon, dt);
   return xi * expEpsilon;
 }
 
-vpColVector phiinv(const UKFM::State &state, const UKFM::State &hat_state)
+vpColVector phiinv(const UKFM::State &state, const UKFM::State &hat_state, const double &dt)
 {
-  return vpExponentialMap::inverse(state.inverse() * hat_state);
+  return vpExponentialMap::inverse(state.inverse() * hat_state, dt);
 }
 
 UKFM::State f(const UKFM::State &state, const vpColVector &omega, const vpColVector &w, const double &dt)
@@ -225,11 +225,12 @@ int main(int argc, char **argv)
       ukf.filter(z, dt);
       cMo_filt = ukf.getXest();
 
-      ukf_ukfmImplem.propagation(ukfm_omega, dt);
-      ukf_ukfmImplem.update(asColVector(cMo.getTranslationVector()));
+      ukf_ukfmImplem.propagation(z, dt);
+      ukf_ukfmImplem.update(asColVector(cMo.getTranslationVector()), dt);
       ukfm_cMo_filt = ukf_ukfmImplem.getXest();
 
       std::cout << "iter: " << frame_cpt << " cMo:\n" << cMo << std::endl;
+      std::cout << "z = [" << z.transpose() << "]" << std::endl;
       std::cout << "\tcMo_ukfm:" << std::endl;
       for (unsigned int i = 0; i < 4; ++i) {
         std::cout << "\t\t";

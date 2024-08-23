@@ -13,8 +13,8 @@ public:
   typedef vpHomogeneousMatrix State;
   typedef std::function<State(const State &, const vpColVector &, const vpColVector &, const double &)> ProcessFunction;
   typedef std::function<vpColVector(const State &)> ObservationFunction;
-  typedef std::function<State(const State &, const vpColVector &)> RetractationFunction;
-  typedef std::function<vpColVector(const State &, const State &)> InverseRetractationFunction;
+  typedef std::function<State(const State &, const vpColVector &, const double &)> RetractationFunction;
+  typedef std::function<vpColVector(const State &, const State &, const double &)> InverseRetractationFunction;
 
   UKFM(const ProcessFunction &f, const ObservationFunction &h, const RetractationFunction &phi, const InverseRetractationFunction &phi_inv,
       const vpMatrix &Q, const vpMatrix &R, const std::vector<double> &alphas,
@@ -22,7 +22,7 @@ public:
 
   void propagation(const vpColVector &omega, const double &dt);
 
-  void update(const vpColVector &y);
+  void update(const vpColVector &y, const double &dt);
 
   inline void setX0(const State &X0)
   {
