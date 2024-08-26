@@ -36,12 +36,15 @@ int main(int argc, char **argv)
       }
       else if (std::string(argv[i]) == "--P0" && i + 1 < argc) {
         opt_stdevP0 = std::atof(argv[i + 1]);
+        ++i;
       }
       else if (std::string(argv[i]) == "--Q" && i + 1 < argc) {
         opt_stdevQ = std::atof(argv[i + 1]);
+        ++i;
       }
       else if (std::string(argv[i]) == "--R" && i + 1 < argc) {
         opt_stdevR = std::atof(argv[i + 1]);
+        ++i;
       }
       else if (std::string(argv[i]) == "--help" || std::string(argv[i]) == "-h") {
         std::cout << "\nUsage: " << argv[0] << " [--name <video name>] [--tracker <1=egde|2=keypoint|3=hybrid>]"
@@ -96,7 +99,7 @@ int main(int argc, char **argv)
       std::cout << "KLT and hybrid model-based tracker are not available since visp_klt module is missing"
         << std::endl;
       return EXIT_SUCCESS;
-    }
+  }
 #endif
 
     //! [Set parameters]
@@ -141,7 +144,7 @@ int main(int argc, char **argv)
       cam.initPersProjWithoutDistortion(839.21470, 839.44555, 325.66776, 243.69727);
       tracker.setCameraParameters(cam);
       //! [Set camera parameters]
-    }
+}
 #endif
     //! [Set parameters]
 
@@ -155,7 +158,6 @@ int main(int argc, char **argv)
     tracker.initClick(I, objectname + ".init", true);
     //! [Init]
 
-    vpColVector omega0(6, 0.);
     vpMatrix Id;
     Id.eye(6);
     vpMatrix P0 = Id * opt_stdevP0 * opt_stdevP0;
