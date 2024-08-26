@@ -6,13 +6,17 @@ find_package(VISP REQUIRED visp_core visp_mbt visp_io visp_gui)
 
 # set the list of source files
 set(tutorial_cpp
-  tutorial-mb-generic-tracker-ukf.cpp)
+  tutorial-mb-generic-tracker-ukf.cpp
+  tutorial-mb-ukf-blender.cpp
+  )
 
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.mp4")
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.xml")
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.cao")
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.init")
 list(APPEND tutorial_data "${CMAKE_CURRENT_SOURCE_DIR}/teabox-long.png")
+list(APPEND tutorial_data_dir "data")
+list(APPEND tutorial_data_dir "model")
 
 foreach(cpp ${tutorial_cpp})
   visp_add_target(${cpp})
@@ -29,4 +33,9 @@ endforeach()
 # Copy the data files to the same location than the target
 foreach(data ${tutorial_data})
   visp_copy_data(tutorial-mb-generic-tracker-ukf.cpp ${data})
+endforeach()
+
+# Copy the data files to the same location than the target
+foreach(data_dir ${tutorial_data_dir})
+  visp_copy_dir(tutorial-mb-ukf-blender.cpp "${CMAKE_CURRENT_SOURCE_DIR}" ${data_dir})
 endforeach()
