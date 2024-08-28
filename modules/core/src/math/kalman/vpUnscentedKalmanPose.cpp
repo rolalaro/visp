@@ -42,6 +42,35 @@
 BEGIN_VISP_NAMESPACE
 const double  vpUnscentedKalmanPose::TOL = 1e-9;
 
+void log(std::ostream &os, const std::string &funName, const std::string &text, const unsigned int &level = 0)
+{
+  os << "[vpUKFp::" << funName << "] ";
+  for (unsigned int i = 0; i < level; ++i) {
+    os << "\t";
+  }
+  os << text << std::endl << std::flush;
+}
+
+void log(std::ostream &os, const std::string &funName, const std::string &arrayName, const vpArray2D<double> &array, const unsigned int &level = 0)
+{
+  os << "[vpUKFp::" << funName << "] ";
+  for (unsigned int i = 0; i < level; ++i) {
+    os << "\t";
+  }
+  os << arrayName << ":=" << std::endl;
+  for (unsigned int r = 0; r < array.getRows(); ++r) {
+    for (unsigned int i = 0; i < level; ++i) {
+      os << "\t";
+    }
+    os << "[";
+    for (unsigned int c = 0; c < array.getCols() - 1; ++c) {
+      os << std::setprecision(3) << std::scientific << array[r][c] << "\t; ";
+    }
+    os << array[r][array.getCols() - 1] << "]\n";
+  }
+  os << std::flush;
+}
+
 vpUnscentedKalmanPose::vpUnscentedKalmanPose(const vpMatrix &Q, const vpMatrix &R, const std::vector<double> &alphas,
       const State &X0, const vpMatrix &P0,
       const ProcessFunction &f, const ObservationFunction &h,
@@ -72,10 +101,23 @@ void vpUnscentedKalmanPose::filter(const vpColVector &omega, const vpColVector &
 void vpUnscentedKalmanPose::predict(const vpColVector &omega, const double &dt)
 {
   vpMatrix P = m_P + TOL * m_Id_d;
+  static double totalDx = 0., totalDy = 0., totalDz = 0.;
 
   // Update mean
   vpColVector w(m_q, 0.);
+  log(std::cout, "predict", "Update mean");
+  log(std::cout, "predict", "v", omega.transpose(), 1);
+  State disp = vpExponentialMap::direct(omega + w, dt);
+  log(std::cout, "predict", "disp", disp.getTranslationVector().t(), 1);
+  log(std::cout, "predict", "state(t-1)", m_state.getTranslationVector().t(), 1);
   State newState = m_f(m_state, omega, w, dt);
+  log(std::cout, "predict", "state(t)", newState.getTranslationVector().t(), 1);
+  totalDx += disp.getTranslationVector()[0];
+  totalDy += disp.getTranslationVector()[1];
+  totalDz += disp.getTranslationVector()[2];
+  log(std::cout, "predict", std::string("dx_total = ") + std::to_string(totalDx), 1);
+  log(std::cout, "predict", std::string("dy_total = ") + std::to_string(totalDy), 1);
+  log(std::cout, "predict", std::string("dz_total = ") + std::to_string(totalDz), 1);
 
   // // Compute covariance w.r.t state uncertainty
   Weights::Weight w_d = m_weights.m_d;
@@ -172,15 +214,19 @@ void vpUnscentedKalmanPose::update(const vpColVector &y, const double &dt)
   vpMatrix Pxiy = w_d.m_wj * temp * ys;
   vpMatrix Pyy = w_d.m_w0 * (hat_y * hat_y.transpose()) + m_R;
   for (unsigned int j = 0; j < m_d; ++j) {
-    Pyy += w_d.m_wj * (ys.getRow(j).transpose() * ys.getRow(j));
-    Pyy += w_d.m_wj * (ys.getRow(j + m_d).transpose() * ys.getRow(j + m_d));
+    vpColVector yip = ys.getRow(j).transpose() - y_bar;
+    vpColVector yim = ys.getRow(j + m_d).transpose() - y_bar;
+    Pyy += w_d.m_wj * (yip * yip.transpose());
+    Pyy += w_d.m_wj * (yim * yim.transpose());
   }
 
   // Kalman gain
   vpMatrix K = Pxiy * Pyy.inverseByCholesky();
 
   // Update state
+  // log(std::cout, "update", "xiPlus ...");
   vpColVector xiPlus = K * (y - y_bar);
+  // log(std::cout, "update", "xiPlus", xiPlus.transpose(), 1);
   m_state = m_phi(m_state, xiPlus, dt);
 
   // Update covariance
@@ -208,17 +254,22 @@ vpColVector vpUnscentedKalmanPose::asColVector(const vpTranslationVector &t)
 vpUnscentedKalmanPose::State vpUnscentedKalmanPose::phiSE3(const vpUnscentedKalmanPose::State &chi, const vpColVector &epsilon, const double &dt)
 {
   vpUnscentedKalmanPose::State expEpsilon = vpExponentialMap::direct(epsilon, dt);
+  // log(std::cout, "phiSE3", "expEpsilon", expEpsilon.getTranslationVector().t());
   return chi * expEpsilon;
 }
 
 vpColVector vpUnscentedKalmanPose::phiinvSE3(const vpUnscentedKalmanPose::State &state, const vpUnscentedKalmanPose::State &hat_state, const double &dt)
 {
-  return vpExponentialMap::inverse(state.inverse() * hat_state, dt);
+  vpColVector v = vpExponentialMap::inverse(state.inverse() * hat_state, dt);
+  // log(std::cout, "phiinvSE3", "expEpsilon", v.transpose());
+  return v;
 }
 
 vpUnscentedKalmanPose::State vpUnscentedKalmanPose::fSE3(const vpUnscentedKalmanPose::State &state, const vpColVector &omega, const vpColVector &w, const double &dt)
 {
-  return state * vpExponentialMap::direct(omega + w, dt);
+  State displacement = vpExponentialMap::direct(omega + w, dt);
+  // log(std::cout, "f", "disp", displacement.getTranslationVector().t(), 2);
+  return state * displacement;
 }
 
 vpColVector vpUnscentedKalmanPose::hSE3(const vpUnscentedKalmanPose::State &state)

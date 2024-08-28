@@ -26,6 +26,8 @@ int main(int argc, char **argv)
     double opt_stdevP0 = 0.0001;
     double opt_stdevQ = 0.001;
     double opt_stdevR = 0.000001;
+    double alphaPred = 0.1;
+    double dt = 0.040; // 40ms <=> 25Hz
 
     for (int i = 0; i < argc; i++) {
       if (std::string(argv[i]) == "--name" && i + 1 < argc) {
@@ -44,6 +46,14 @@ int main(int argc, char **argv)
       }
       else if (std::string(argv[i]) == "--R" && i + 1 < argc) {
         opt_stdevR = std::atof(argv[i + 1]);
+        ++i;
+      }
+      else if (std::string(argv[i]) == "--dt" && i + 1 < argc) {
+        dt = std::atof(argv[i + 1]);
+        ++i;
+      }
+      else if (std::string(argv[i]) == "--alpha" && i + 1 < argc) {
+        alphaPred = std::atof(argv[i + 1]);
         ++i;
       }
       else if (std::string(argv[i]) == "--help" || std::string(argv[i]) == "-h") {
@@ -99,7 +109,7 @@ int main(int argc, char **argv)
       std::cout << "KLT and hybrid model-based tracker are not available since visp_klt module is missing"
         << std::endl;
       return EXIT_SUCCESS;
-  }
+    }
 #endif
 
     //! [Set parameters]
@@ -144,7 +154,7 @@ int main(int argc, char **argv)
       cam.initPersProjWithoutDistortion(839.21470, 839.44555, 325.66776, 243.69727);
       tracker.setCameraParameters(cam);
       //! [Set camera parameters]
-}
+    }
 #endif
     //! [Set parameters]
 
@@ -163,8 +173,6 @@ int main(int argc, char **argv)
     vpMatrix P0 = Id * opt_stdevP0 * opt_stdevP0;
     vpMatrix Q = Id * opt_stdevQ * opt_stdevQ;
     vpMatrix R = Id * opt_stdevR * opt_stdevR;
-    double alphaPred = 0.1;
-    const double dt = 0.040; // 40ms <=> 25Hz
     vpUnscentedKalmanPose::State X0;
     Id.eye(3);
     vpMatrix R_ukfm = Id * opt_stdevR * opt_stdevR;

@@ -423,6 +423,7 @@ int main(int argc, const char **argv)
       }
       else {
         v = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), dt);
+        std::cout << "v = " << v.transpose() << std::endl;
       }
       ukfm.filter(v, vpUnscentedKalmanPose::asPositionVector(cMo), dt);
       cMo_filt = ukfm.getState();
