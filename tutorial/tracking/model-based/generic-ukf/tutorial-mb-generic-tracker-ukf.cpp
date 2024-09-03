@@ -143,9 +143,15 @@ public:
 
   vpColVector fx(const vpColVector &state, const double &dt)
   {
-    vpHomogeneousMatrix cprevMc = vpExponentialMap::direct(m_vel, dt);
     vpHomogeneousMatrix cprevMo = stateToHomogeneousMatrix(state);
-    vpHomogeneousMatrix updatedPose = cprevMc.inverse() * cprevMo;
+    const unsigned int nbSteps = 10;
+    double dtSub = dt / static_cast<double>(nbSteps);
+    vpHomogeneousMatrix updatedPose;
+    for (unsigned int i = 0; i < nbSteps; ++i) {
+      vpHomogeneousMatrix cprevMc = vpExponentialMap::direct(m_vel, dtSub);
+      updatedPose = cprevMc.inverse() * cprevMo;
+      cprevMo = updatedPose;
+    }
     return homogeneousMatrixToState(updatedPose);
   }
 
@@ -258,16 +264,16 @@ struct SoftwareArguments
     , m_stdevR(0.000001)
     , m_alphaPred(0.1)
     , m_N(500)
-    , m_maxDistanceForLikelihood(0.1)
-    , m_maxOrientationErrorForLikelihood(vpMath::rad(10))
-    , m_ampliMaxtX(0.02)
-    , m_ampliMaxtY(0.02)
-    , m_ampliMaxtZ(0.02)
-    , m_ampliMaxtuX(vpMath::rad(5))
-    , m_ampliMaxtuY(vpMath::rad(5))
-    , m_ampliMaxtuZ(vpMath::rad(5))
+    , m_maxDistanceForLikelihood(0.05)
+    , m_maxOrientationErrorForLikelihood(vpMath::rad(5))
+    , m_ampliMaxtX(0.005)
+    , m_ampliMaxtY(0.005)
+    , m_ampliMaxtZ(0.005)
+    , m_ampliMaxtuX(vpMath::rad(2.5))
+    , m_ampliMaxtuY(vpMath::rad(2.5))
+    , m_ampliMaxtuZ(vpMath::rad(2.5))
     , m_seedPF(4224)
-    , m_nbThreads(1)
+    , m_nbThreads(10)
   { }
 
   int parseArgs(const int argc, const char *argv[])
@@ -698,9 +704,9 @@ int main(const int argc, const char **argv)
         v = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), args.m_dt);
       }
       ukfm.filter(v, vpUnscentedKalmanPose::asPositionVector(cMo), args.m_dt);
-      processFunctor.setVel(v);
       cMo_filt = ukfm.getState();
 
+      processFunctor.setVel(v);
       pfFilter.filter(cMo, args.m_dt);
       vpColVector Xfilt_pf = pfFilter.computeFilteredState();
       vpHomogeneousMatrix cMo_pf = stateToHomogeneousMatrix(Xfilt_pf);
