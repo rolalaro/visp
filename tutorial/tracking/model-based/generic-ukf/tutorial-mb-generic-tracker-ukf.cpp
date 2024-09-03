@@ -136,16 +136,25 @@ class vpProcessFunctor
 {
 public:
   vpProcessFunctor()
+    : m_vel(6, 0.)
   {
 
   }
 
   vpColVector fx(const vpColVector &state, const double &dt)
   {
-    return state;
+    vpHomogeneousMatrix cprevMc = vpExponentialMap::direct(m_vel, dt);
+    vpHomogeneousMatrix cprevMo = stateToHomogeneousMatrix(state);
+    vpHomogeneousMatrix updatedPose = cprevMc.inverse() * cprevMo;
+    return homogeneousMatrixToState(updatedPose);
+  }
+
+  void setVel(const vpColVector &vel)
+  {
+    m_vel = vel;
   }
 private:
-
+  vpColVector m_vel;
 };
 
 /**
@@ -188,10 +197,7 @@ public:
   double likelihood(const vpColVector &x, const vpHomogeneousMatrix &cMo_meas)
   {
     double likelihood = 0.;
-    vpHomogeneousMatrix cMo_particle;
-    vpTranslationVector cTo_particle(x[0], x[1], x[2]);
-    vpThetaUVector cTuo_particle(x[3], x[4], x[5]);
-    cMo_particle.build(cTo_particle, cTuo_particle);
+    vpHomogeneousMatrix cMo_particle = stateToHomogeneousMatrix(x);
     vpHomogeneousMatrix cmeasMcparticle = cMo_meas * cMo_particle.inverse();
     double distance = cmeasMcparticle.getTranslationVector().frobeniusNorm();
     double angleError = std::sqrt(cmeasMcparticle.getThetaUVector().sumSquare());
@@ -256,7 +262,7 @@ struct SoftwareArguments
     , m_maxOrientationErrorForLikelihood(vpMath::rad(10))
     , m_ampliMaxtX(0.02)
     , m_ampliMaxtY(0.02)
-    , m_ampliMaxtZ(0.01)
+    , m_ampliMaxtZ(0.02)
     , m_ampliMaxtuX(vpMath::rad(5))
     , m_ampliMaxtuY(vpMath::rad(5))
     , m_ampliMaxtuZ(vpMath::rad(5))
@@ -402,6 +408,7 @@ private:
   {
     std::cout << std::endl << std::endl;
     std::cout << "DETAILS" << std::endl;
+    std::cout << " [Simu params]" << std::endl;
     std::cout << "  --nb-steps-main" << std::endl;
     std::cout << "    Number of steps in the main loop." << std::endl;
     std::cout << "    Default: " << m_nbSteps << std::endl;
@@ -422,6 +429,7 @@ private:
     std::cout << "    The timestep between two frames, in seconds." << std::endl;
     std::cout << "    Default: " << m_dt << std::endl;
     std::cout << std::endl;
+    std::cout << " [UKF params]" << std::endl;
     std::cout << "  --P0" << std::endl;
     std::cout << "    The standard deviation of the initial process covariance matrix." << std::endl;
     std::cout << "    Default: " << m_stdevP0 << std::endl;
@@ -438,6 +446,7 @@ private:
     std::cout << "    The spreading factor of the chi points." << std::endl;
     std::cout << "    Default: " << m_alphaPred << std::endl;
     std::cout << std::endl;
+    std::cout << " [PF params]" << std::endl;
     std::cout << "  --max-distance-likelihood" << std::endl;
     std::cout << "    Maximum distance between a particle with the measurements." << std::endl;
     std::cout << "    Above this value, the likelihood of the particle is 0." << std::endl;
@@ -486,6 +495,7 @@ private:
     std::cout << "    Maximum amplitude of the noise added to the rotational part of a particle around the Z-axis." << std::endl;
     std::cout << "    Default: " << vpMath::deg(m_ampliMaxtuZ) << std::endl;
     std::cout << std::endl;
+    std::cout << " [Other params]" << std::endl;
     std::cout << "  -d, --no-display" << std::endl;
     std::cout << "    Deactivate display." << std::endl;
     std::cout << "    Default: display is ";
@@ -688,6 +698,7 @@ int main(const int argc, const char **argv)
         v = vpExponentialMap::inverse(cMo_prev * cMo.inverse(), args.m_dt);
       }
       ukfm.filter(v, vpUnscentedKalmanPose::asPositionVector(cMo), args.m_dt);
+      processFunctor.setVel(v);
       cMo_filt = ukfm.getState();
 
       pfFilter.filter(cMo, args.m_dt);
