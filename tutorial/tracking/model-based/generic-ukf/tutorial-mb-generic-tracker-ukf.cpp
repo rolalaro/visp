@@ -722,6 +722,7 @@ int main(const int argc, const char **argv)
       vpDisplay::displayFrame(I, cMo, cam, 0.025, vpColor::none, 3);
       vpDisplay::displayFrame(I, cMo_filt, cam, 0.025, vpColor::yellow, 3);
       vpDisplay::displayFrame(I, cMo_pf, cam, 0.025, vpColor::purple, 3);
+      tracker.display(I, cMo_pf, cam, vpColor::purple, 2);
       vpDisplay::displayText(I, 10, 10, "A right click to exit...", vpColor::red);
       vpDisplay::displayText(I, 30, 10, "A middle click to switch to " + (stepbystep ? std::string("auto") : std::string("step-by-step")) + " mode", vpColor::red);
       if (stepbystep) {
