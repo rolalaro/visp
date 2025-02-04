@@ -552,6 +552,9 @@ VP_OPTION(ENABLE_FULL_DOC      "" "" "Build doc with internal classes that are b
 VP_OPTION(ENABLE_VISP_NAMESPACE "" "" "Enable visp namespace" "" OFF)
 # Allow introduction of "explicit" keyword. By default disabled to keep compat with previous versions
 VP_OPTION(ENABLE_EXPLICIT_KEYWORD "" "" "Enable c++ explicit keyword" "" OFF)
+# Enable the vpImageTools::warp methods
+VP_OPTION(VISP_HAVE_FUNC_WARP "" "" "Enable vpImageTools::warp methods" "" ON)
+mark_as_advanced(VISP_HAVE_FUNC_WARP)
 
 if(ENABLE_SOLUTION_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)

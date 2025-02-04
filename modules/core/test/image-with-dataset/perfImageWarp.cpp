@@ -37,7 +37,7 @@
 
 #include <visp3/core/vpConfig.h>
 
-#if defined(VISP_HAVE_CATCH2)
+#if defined(VISP_HAVE_CATCH2) && defined(VISP_HAVE_FUNC_WARP)
 
 #include <catch_amalgamated.hpp>
 

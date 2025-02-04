@@ -39,7 +39,7 @@
 
 #include <visp3/core/vpConfig.h>
 
-#if defined(VISP_HAVE_CATCH2) && (VISP_HAVE_DATASET_VERSION >= 0x030300)
+#if defined(VISP_HAVE_CATCH2) && (VISP_HAVE_DATASET_VERSION >= 0x030300) && defined(VISP_HAVE_FUNC_WARP)
 
 #include <catch_amalgamated.hpp>
 

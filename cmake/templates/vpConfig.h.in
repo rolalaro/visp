@@ -596,6 +596,9 @@ namespace vp = VISP_NAMESPACE_NAME;
 // Defined if xrandr program available
 #cmakedefine VISP_HAVE_XRANDR
 
+// Defined if the warp methods of vpImageTools are enabled
+#cmakedefine VISP_HAVE_FUNC_WARP
+
 // Defined if TensorRT available
 #cmakedefine VISP_HAVE_TENSORRT
 
