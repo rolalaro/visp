@@ -39,6 +39,10 @@
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 namespace tutorial
 {
+#ifdef ENABLE_VISP_NAMESPACE
+using namespace VISP_NAMESPACE_NAME;
+#endif
+
 /*!
  * \brief Model of a parabola \f[v = \sum_{i = 0}^N a_i u^i \f] where \f[N\f] is the
  * degree of the polynomial.
@@ -61,7 +65,7 @@ public:
    * \param[in] height The height of the input image.
    * \param[in] width The width of the input image.
    */
-  inline vpTutoParabolaModel(const VISP_NAMESPACE_ADDRESSING vpColVector &coeffs, const unsigned int &height, const unsigned int &width)
+  inline vpTutoParabolaModel(const  vpColVector &coeffs, const unsigned int &height, const unsigned int &width)
     : m_degree(coeffs.size() - 1)
     , m_height(static_cast<unsigned int>(height))
     , m_width(static_cast<unsigned int>(width))
@@ -76,7 +80,7 @@ public:
    * \param[in] height The height of the input image.
    * \param[in] width The width of the input image.
    */
-  inline vpTutoParabolaModel(const VISP_NAMESPACE_ADDRESSING vpMatrix &coeffs, const unsigned int &height, const unsigned int &width)
+  inline vpTutoParabolaModel(const  vpMatrix &coeffs, const unsigned int &height, const unsigned int &width)
     : m_degree(coeffs.getRows() - 1)
     , m_height(static_cast<unsigned int>(height))
     , m_width(static_cast<unsigned int>(width))
@@ -105,7 +109,7 @@ public:
    *
    * \return coeffs a:=coeffs[0] b:=coeffs[1] c:=coeffs[2]
    */
-  inline VISP_NAMESPACE_ADDRESSING vpColVector toVpColVector() const
+  inline  vpColVector toVpColVector() const
   {
     return m_coeffs;
   }
@@ -134,14 +138,14 @@ public:
    * \return Fill
    */
   //! [Fill_LMS_system]
-  static void fillSystem(const unsigned int &degree, const double &height, const double &width, const std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> &pts, VISP_NAMESPACE_ADDRESSING vpMatrix &A, VISP_NAMESPACE_ADDRESSING vpMatrix &b)
+  static void fillSystem(const unsigned int &degree, const double &height, const double &width, const std::vector< vpImagePoint> &pts, vpMatrix &A, vpMatrix &b)
   {
     const unsigned int nbPts = static_cast<unsigned int>(pts.size());
     const unsigned int nbCoeffs = degree + 1;
-    std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> normalizedPts;
+    std::vector< vpImagePoint> normalizedPts;
     // Normalization to avoid numerical instability
     for (const auto &pt: pts) {
-      normalizedPts.push_back(VISP_NAMESPACE_ADDRESSING vpImagePoint(pt.get_i() / height, pt.get_j() / width));
+      normalizedPts.push_back(vpImagePoint(pt.get_i() / height, pt.get_j() / width));
     }
     A.resize(nbPts, nbCoeffs, 1.); // Contains the u^i
     b.resize(nbPts, 1); // Contains the v coordinates
@@ -167,7 +171,7 @@ private:
   unsigned int m_degree; /*!< The highest degree of the polynomial.*/
   unsigned int m_height; /*!< The height of the input image*/
   unsigned int m_width; /*!< The width of the input image*/
-  VISP_NAMESPACE_ADDRESSING vpColVector m_coeffs; /*!< The coefficient of the polynomial, where m_coeffs[0] is the offset and m_coeffs[m_degree] is the coefficient applied to the highest degree.*/
+  vpColVector m_coeffs; /*!< The coefficient of the polynomial, where m_coeffs[0] is the offset and m_coeffs[m_degree] is the coefficient applied to the highest degree.*/
 };
 }
 #endif

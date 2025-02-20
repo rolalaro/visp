@@ -806,7 +806,7 @@ vpMatrix operator*(const double &x, const vpMatrix &B)
   unsigned int Brow = B.getRows();
   unsigned int Bcol = B.getCols();
 
-  VISP_NAMESPACE_ADDRESSING vpMatrix C;
+  vpMatrix C;
   C.resize(Brow, Bcol, false, false);
 
   for (unsigned int i = 0; i < Brow; ++i) {

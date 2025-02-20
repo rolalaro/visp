@@ -47,17 +47,14 @@
 
 #include <opencv2/imgproc/imgproc.hpp>
 
-
+BEGIN_VISP_NAMESPACE
 /*!
  * Compute convex hull corners.
  *
  * \param[in] ips : List of 2D points.
  */
-template <typename IpContainer> std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> convexHull(const IpContainer &ips)
+  template <typename IpContainer> std::vector<vpImagePoint> convexHull(const IpContainer &ips)
 {
-#ifdef ENABLE_VISP_NAMESPACE
-  using namespace VISP_NAMESPACE_NAME;
-#endif
   if (ips.size() == 0) {
     throw vpException(vpException::badValue,
                       "Convex Hull can not be computed as the input does not contain any image point.");
@@ -103,11 +100,10 @@ template <typename IpContainer> std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoi
 #endif
 
   return conv_hull_corners;
-}
+  }
 
 #endif
 
-BEGIN_VISP_NAMESPACE
 /*!
    Default constructor that creates an empty polygon.
 */
@@ -456,7 +452,7 @@ bool vpPolygon::isInside(const vpImagePoint &ip, const PointInPolygonMethod &met
     for (size_t i = 0; i < v_corners_size; ++i) {
       if (((_corners[i].get_v() < ip.get_v()) && (_corners[j].get_v() >= ip.get_v())) ||
           ((_corners[j].get_v() < ip.get_v()) && (_corners[i].get_v() >= ip.get_v()))) {
-        oddNodes ^= ( ((ip.get_v() * m_PnPolyMultiples[i]) + m_PnPolyConstants[i]) < ip.get_u());
+        oddNodes ^= (((ip.get_v() * m_PnPolyMultiples[i]) + m_PnPolyConstants[i]) < ip.get_u());
       }
 
       j = i;

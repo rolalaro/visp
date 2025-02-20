@@ -67,7 +67,7 @@ int main(int, char *argv[])
             vpDisplay::displayText(I, p[j] + vpImagePoint(15, 5), number.str(), vpColor::blue);
           }
 
-          computePose(point, p, cam, init, cMo); // resulting pose is available in cMo var
+          PoseHelper::computePose(point, p, cam, init, cMo); // resulting pose is available in cMo var
           std::cout << "Pose translation (meter): " << cMo.getTranslationVector().t() << std::endl
             << "Pose rotation (quaternion): " << vpQuaternionVector(cMo.getRotationMatrix()).t() << std::endl;
           vpDisplay::displayFrame(I, cMo, cam, 0.05, vpColor::none, 3);
@@ -89,7 +89,7 @@ int main(int, char *argv[])
 #if (VISP_CXX_STANDARD < VISP_CXX_STANDARD_11)
   if (display != nullptr) {
     delete display;
-}
+  }
 #endif
 #else
   (void)argv;

@@ -43,6 +43,10 @@
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 namespace tutorial
 {
+#ifdef ENABLE_VISP_NAMESPACE
+using namespace VISP_NAMESPACE_NAME;
+#endif
+
 /**
  * \brief Perform a segmentation of the original image based on the HSV color encoding.
  *
@@ -54,18 +58,18 @@ void performSegmentationHSV(vpTutoCommonData &data);
  * \brief Extract the skeleton of the segmented image.
  *
  * \param[in] data Data common to the whole program.
- * \return std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > List of the noise-free skeletonized image points.
+ * \return std::vector<  vpImagePoint > List of the noise-free skeletonized image points.
  */
-std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > extractSkeleton(vpTutoCommonData &data);
+std::vector<  vpImagePoint > extractSkeleton(vpTutoCommonData &data);
 
 /**
  * \brief Add salt and pepper noise to the skeletonized image.
  *
  * \param[in] noisefreePts List of the noise-free skeletonized image points.
  * \param[in] data Data common to the whole program.
- * \return std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > List of the noise-free points + additional noisy points.
+ * \return std::vector<  vpImagePoint > List of the noise-free points + additional noisy points.
  */
-std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > addSaltAndPepperNoise(const std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > &noisefreePts, vpTutoCommonData &data);
+std::vector<  vpImagePoint > addSaltAndPepperNoise(const std::vector<  vpImagePoint > &noisefreePts, vpTutoCommonData &data);
 }
 #endif
 #endif

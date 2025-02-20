@@ -67,12 +67,16 @@ public:
   virtual ~QPlot() { delete P; }
   QPlot(int graphNum, int total, std::vector<std::string> legend)
   {
-    P = new VISP_NAMESPACE_ADDRESSING vpPlot(graphNum, 700, 700, 100, 200, "Resolution time");
+#if defined(ENABLE_VISP_NAMESPACE)
+    using namespace VISP_NAMESPACE_NAME;
+#endif
+
+    P = new vpPlot(graphNum, 700, 700, 100, 200, "Resolution time");
 
     for (int i = 0; i < graphNum; ++i) {
       P->initGraph(i, 2);
-      P->setColor(i, 0, VISP_NAMESPACE_ADDRESSING vpColor::red);
-      P->setColor(i, 1, VISP_NAMESPACE_ADDRESSING vpColor::blue);
+      P->setColor(i, 0, vpColor::red);
+      P->setColor(i, 1, vpColor::blue);
       P->setGraphThickness(i, 2);
       P->initRange(i, 0, total, 0, 0.1);
       P->setUnitY(i, "ms");

@@ -162,6 +162,6 @@ protected:
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 VISP_EXPORT
 #endif
-VISP_NAMESPACE_ADDRESSING vpColVector operator*(const double &x, const VISP_NAMESPACE_ADDRESSING vpRotationVector &v);
+vpColVector operator*(const double &x, const vpRotationVector &v);
 END_VISP_NAMESPACE
 #endif

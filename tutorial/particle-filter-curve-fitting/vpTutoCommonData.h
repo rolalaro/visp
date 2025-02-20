@@ -44,7 +44,11 @@
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 namespace tutorial
 {
-inline void log(std::ostream &os, const std::string &filename, const std::string &funName, const std::string &arrayName, const VISP_NAMESPACE_ADDRESSING vpArray2D<double> &array, const unsigned int &level = 0)
+#ifdef ENABLE_VISP_NAMESPACE
+using namespace VISP_NAMESPACE_NAME;
+#endif
+
+inline void log(std::ostream &os, const std::string &filename, const std::string &funName, const std::string &arrayName, const vpArray2D<double> &array, const unsigned int &level = 0)
 {
   os << "[" << filename << "::" << funName << "] ";
   for (unsigned int i = 0; i < level; ++i) {
@@ -67,27 +71,27 @@ inline void log(std::ostream &os, const std::string &filename, const std::string
 typedef struct vpTutoCommonData
 {
   static const int SOFTWARE_CONTINUE = 4221;
-  const VISP_NAMESPACE_ADDRESSING vpColor m_colorLegend = VISP_NAMESPACE_ADDRESSING vpColor::red;
-  const VISP_NAMESPACE_ADDRESSING vpImagePoint m_ipLegend = VISP_NAMESPACE_ADDRESSING vpImagePoint(20, 20);
-  const VISP_NAMESPACE_ADDRESSING vpImagePoint m_legendOffset = VISP_NAMESPACE_ADDRESSING vpImagePoint(20, 0);
+  const vpColor m_colorLegend = vpColor::red;
+  const vpImagePoint m_ipLegend = vpImagePoint(20, 20);
+  const vpImagePoint m_legendOffset = vpImagePoint(20, 0);
   std::string m_seqFilename; /*!< Sequence filenames, such as I%04d.png*/
-  VISP_NAMESPACE_ADDRESSING vpVideoReader m_grabber; /*!< Video grabber from stored files.*/
+  vpVideoReader m_grabber; /*!< Video grabber from stored files.*/
   std::string m_hsvFilename; /*!< Filename of the YAML file that contains the HSV thresholds.*/
-  VISP_NAMESPACE_ADDRESSING vpColVector m_hsv_values; /*!< Vector that contains the lower and upper limits of the HSV thresholds.*/
+  vpColVector m_hsv_values; /*!< Vector that contains the lower and upper limits of the HSV thresholds.*/
   bool m_stepbystep; /*!< If true, the frames are treated in a step by step mode, otherwise the frames are treated as a video.*/
   double m_ratioSaltPepperNoise; /*!< Ratio of noise points to introduce in the addSaltAndPepperNoise function.*/
   unsigned int m_degree; //!< Degree for the polynomials.
 
   /// Images and displays parameters
-  VISP_NAMESPACE_ADDRESSING vpImage<VISP_NAMESPACE_ADDRESSING vpRGBa> m_I_orig; /*!< The color image read from the file.*/
-  VISP_NAMESPACE_ADDRESSING vpImage<VISP_NAMESPACE_ADDRESSING vpRGBa> m_I_segmented; /*!< The segmented color image resulting from HSV segmentation.*/
-  VISP_NAMESPACE_ADDRESSING vpImage<unsigned char> m_mask; /*!< A binary mask where 255 means that a pixel belongs to the HSV range delimited by the HSV thresholds.*/
-  VISP_NAMESPACE_ADDRESSING vpImage<unsigned char> m_Iskeleton; /*!< The image resulting from the skeletonization of the mask.*/
-  VISP_NAMESPACE_ADDRESSING vpImage<unsigned char> m_IskeletonNoisy; /*!< The image resulting from the skeletonization of the mask, to which is added some salt and pepper noise.*/
+  vpImage<vpRGBa> m_I_orig; /*!< The color image read from the file.*/
+  vpImage<vpRGBa> m_I_segmented; /*!< The segmented color image resulting from HSV segmentation.*/
+  vpImage<unsigned char> m_mask; /*!< A binary mask where 255 means that a pixel belongs to the HSV range delimited by the HSV thresholds.*/
+  vpImage<unsigned char> m_Iskeleton; /*!< The image resulting from the skeletonization of the mask.*/
+  vpImage<unsigned char> m_IskeletonNoisy; /*!< The image resulting from the skeletonization of the mask, to which is added some salt and pepper noise.*/
 #if defined(VISP_HAVE_DISPLAY)
-  std::shared_ptr<VISP_NAMESPACE_ADDRESSING vpDisplay> m_displayOrig;
-  std::shared_ptr<VISP_NAMESPACE_ADDRESSING vpDisplay> m_displaySegmented;
-  std::shared_ptr<VISP_NAMESPACE_ADDRESSING vpDisplay> m_displayNoisy;
+  std::shared_ptr<vpDisplay> m_displayOrig;
+  std::shared_ptr<vpDisplay> m_displaySegmented;
+  std::shared_ptr<vpDisplay> m_displayNoisy;
 #endif
 
   /// Particle filter parameters
@@ -98,8 +102,8 @@ typedef struct vpTutoCommonData
   int m_pfNbThreads; /*!< Number of threads the Particle filter should use.*/
 
   vpTutoCommonData()
-    : m_seqFilename(VISP_NAMESPACE_ADDRESSING vpIoTools::createFilePath("data", "color_image_%04d.png"))
-    , m_hsvFilename(VISP_NAMESPACE_ADDRESSING vpIoTools::createFilePath("calib", "hsv-thresholds.yml"))
+    : m_seqFilename(vpIoTools::createFilePath("data", "color_image_%04d.png"))
+    , m_hsvFilename(vpIoTools::createFilePath("calib", "hsv-thresholds.yml"))
     , m_stepbystep(true)
     , m_ratioSaltPepperNoise(0.15)
     , m_degree(2)
@@ -239,7 +243,7 @@ typedef struct vpTutoCommonData
     m_pfRatiosAmpliMax.resize(m_degree, m_pfRatiosAmpliMax[0]);
 
     // Load the HSV thresholds
-    if (VISP_NAMESPACE_ADDRESSING vpColVector::loadYAML(m_hsvFilename, m_hsv_values)) {
+    if (vpColVector::loadYAML(m_hsvFilename, m_hsv_values)) {
       std::cout << "Load HSV threshold values from " << m_hsvFilename << std::endl;
       std::cout << "HSV low/high values: " << m_hsv_values.t() << std::endl;
     }
@@ -253,7 +257,7 @@ typedef struct vpTutoCommonData
       m_grabber.setFileName(m_seqFilename);
       m_grabber.open(m_I_orig);
     }
-    catch (const VISP_NAMESPACE_ADDRESSING vpException &e) {
+    catch (const vpException &e) {
       std::cout << e.getStringMessage() << std::endl;
       return EXIT_FAILURE;
     }
@@ -267,38 +271,38 @@ typedef struct vpTutoCommonData
 #if defined(VISP_HAVE_DISPLAY)
     const int horOffset = 20, vertOffset = 25;
     std::string skeletonTitle("Skeletonized image (");
-    skeletonTitle += (VISP_NAMESPACE_ADDRESSING vpMath::equal(m_ratioSaltPepperNoise, 0.) ? "without" : std::to_string(static_cast<unsigned int>(m_ratioSaltPepperNoise * 100.)) + "%");
+    skeletonTitle += (vpMath::equal(m_ratioSaltPepperNoise, 0.) ? "without" : std::to_string(static_cast<unsigned int>(m_ratioSaltPepperNoise * 100.)) + "%");
     skeletonTitle += " noise)";
-    m_displayOrig = VISP_NAMESPACE_ADDRESSING vpDisplayFactory::createDisplay(m_I_orig, horOffset, vertOffset, "Original image");
-    m_displaySegmented = VISP_NAMESPACE_ADDRESSING vpDisplayFactory::createDisplay(m_I_segmented, 2 * horOffset + m_I_orig.getWidth(), vertOffset, "Segmented image");
-    m_displayNoisy = VISP_NAMESPACE_ADDRESSING vpDisplayFactory::createDisplay(m_IskeletonNoisy, 2 * horOffset + m_I_orig.getWidth(), 2 * vertOffset + m_I_orig.getHeight(), skeletonTitle);
+    m_displayOrig = vpDisplayFactory::createDisplay(m_I_orig, horOffset, vertOffset, "Original image");
+    m_displaySegmented = vpDisplayFactory::createDisplay(m_I_segmented, 2 * horOffset + m_I_orig.getWidth(), vertOffset, "Segmented image");
+    m_displayNoisy = vpDisplayFactory::createDisplay(m_IskeletonNoisy, 2 * horOffset + m_I_orig.getWidth(), 2 * vertOffset + m_I_orig.getHeight(), skeletonTitle);
 #endif
     return SOFTWARE_CONTINUE;
   }
 
 #ifdef VISP_HAVE_DISPLAY
   template<typename T>
-  void displayLegend(const VISP_NAMESPACE_ADDRESSING vpImage<T> &I)
+  void displayLegend(const vpImage<T> &I)
   {
-    VISP_NAMESPACE_ADDRESSING vpImagePoint ip(20, 20);
-    VISP_NAMESPACE_ADDRESSING vpImagePoint offset(20, 0);
+    vpImagePoint ip(20, 20);
+    vpImagePoint offset(20, 0);
     if (m_stepbystep) {
-      VISP_NAMESPACE_ADDRESSING vpDisplay::displayText(I, ip, std::string("Left click to switch to next image"), VISP_NAMESPACE_ADDRESSING vpColor::red);
+      vpDisplay::displayText(I, ip, std::string("Left click to switch to next image"), vpColor::red);
     }
-    VISP_NAMESPACE_ADDRESSING vpDisplay::displayText(I, ip + offset, std::string("Middle click to switch to ") + (m_stepbystep ? std::string("video mode") : std::string("step-by-step mode")), VISP_NAMESPACE_ADDRESSING vpColor::red);
-    VISP_NAMESPACE_ADDRESSING vpDisplay::displayText(I, ip + offset + offset, std::string("Right click to quit"), VISP_NAMESPACE_ADDRESSING vpColor::red);
+    vpDisplay::displayText(I, ip + offset, std::string("Middle click to switch to ") + (m_stepbystep ? std::string("video mode") : std::string("step-by-step mode")), vpColor::red);
+    vpDisplay::displayText(I, ip + offset + offset, std::string("Right click to quit"), vpColor::red);
   }
 
   template<typename T>
-  bool manageClicks(const VISP_NAMESPACE_ADDRESSING vpImage<T> &I, bool &stepbystep)
+  bool manageClicks(const vpImage<T> &I, bool &stepbystep)
   {
-    VISP_NAMESPACE_ADDRESSING vpImagePoint ip;
-    VISP_NAMESPACE_ADDRESSING vpMouseButton::vpMouseButtonType button;
-    VISP_NAMESPACE_ADDRESSING vpDisplay::getClick(I, ip, button, stepbystep);
-    if (button == VISP_NAMESPACE_ADDRESSING vpMouseButton::vpMouseButtonType::button3) {
+    vpImagePoint ip;
+    vpMouseButton::vpMouseButtonType button;
+    vpDisplay::getClick(I, ip, button, stepbystep);
+    if (button == vpMouseButton::vpMouseButtonType::button3) {
       return false;
     }
-    if (button == VISP_NAMESPACE_ADDRESSING vpMouseButton::vpMouseButtonType::button2) {
+    if (button == vpMouseButton::vpMouseButtonType::button2) {
       stepbystep = stepbystep ^ true;
     }
     return true;

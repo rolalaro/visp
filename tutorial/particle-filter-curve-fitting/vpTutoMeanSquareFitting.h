@@ -43,6 +43,10 @@
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 namespace tutorial
 {
+#ifdef ENABLE_VISP_NAMESPACE
+using namespace VISP_NAMESPACE_NAME;
+#endif
+
 /**
  * \brief Estimates the coefficients of a parabola v = a u^2 + b u + c
  * using the least-mean-square method.
@@ -65,7 +69,7 @@ public:
    *
    * \param[in] pts The input points for which we want to fit a parabola model.
    */
-  void fit(const std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> &pts);
+  void fit(const std::vector< vpImagePoint> &pts);
 
   /**
    * \brief Compute the Root Mean Square Error between the model and the given points.
@@ -73,7 +77,7 @@ public:
    * \param[in] pts The Ground Truth points.
    * \return double The Root Mean Square Error \f[ RMSE = \sqrt{\frac{\sum_{i = 0}^{N-1} e^2}{N}} \f]
    */
-  double evaluate(const std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> &pts);
+  double evaluate(const std::vector<vpImagePoint> &pts);
 
   /**
    * \brief Compute the square error between the model and a Ground Truth point.
@@ -81,7 +85,7 @@ public:
    * \param[in] pt The Ground Truth point.
    * \return double The square error.
    */
-  double evaluate(const VISP_NAMESPACE_ADDRESSING vpImagePoint &pt);
+  double evaluate(const vpImagePoint &pt);
 
   /**
    * \brief Compute the v-coordinate that corresponds to the given u-coordinate
@@ -102,14 +106,14 @@ public:
    * \param[in] color The color we want to use to display the parabola.
    */
   template<typename T>
-  void display(const VISP_NAMESPACE_ADDRESSING vpImage<T> &I, const VISP_NAMESPACE_ADDRESSING vpColor &color,
+  void display(const vpImage<T> &I, const vpColor &color,
                const unsigned int &vertPosLegend, const unsigned int &horPosLegend)
   {
     unsigned int width = I.getWidth();
     for (unsigned int u = 0; u < width; ++u) {
       int v = static_cast<int>(model(u));
-      VISP_NAMESPACE_ADDRESSING vpDisplay::displayPoint(I, v, u, color, 1);
-      VISP_NAMESPACE_ADDRESSING vpDisplay::displayText(I, vertPosLegend, horPosLegend, "Least-mean square model", color);
+      vpDisplay::displayPoint(I, v, u, color, 1);
+      vpDisplay::displayText(I, vertPosLegend, horPosLegend, "Least-mean square model", color);
     }
   }
 #endif
@@ -134,7 +138,7 @@ public:
    *
    * \return vpColVector The coefficients of the parabola, as described in \b vpTutoParabolaModel::toVpColVector()
    */
-  inline VISP_NAMESPACE_ADDRESSING vpColVector getCoeffs() const
+  inline vpColVector getCoeffs() const
   {
     return m_model.toVpColVector();
   }

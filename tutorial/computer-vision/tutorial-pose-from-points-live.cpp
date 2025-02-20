@@ -194,8 +194,8 @@ int main(int argc, char **argv)
       vpDisplay::display(I);
       if (apply_cv) {
         try {
-          ip = track(I, dot, init_cv);
-          computePose(point, ip, cam, init_cv, cMo);
+          ip = PoseHelper::track(I, dot, init_cv);
+          PoseHelper::computePose(point, ip, cam, init_cv, cMo);
           vpDisplay::displayFrame(I, cMo, cam, opt_square_width, vpColor::none, 3);
           if (init_cv)
             init_cv = false; // turn off the computer vision initialisation specific stuff

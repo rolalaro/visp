@@ -8,6 +8,8 @@
 using namespace VISP_NAMESPACE_NAME;
 #endif
 
+namespace PoseHelper
+{
 //! [Compute pose]
 void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &ip, const vpCameraParameters &cam,
                  bool init, vpHomogeneousMatrix &cMo)
@@ -73,6 +75,7 @@ std::vector<vpImagePoint> track(vpImage<unsigned char> &I, std::vector<vpDot2> &
   catch (...) {
     std::cout << "Traking lost" << std::endl;
     throw(vpException(vpException::fatalError, "Tracking lost"));
-}
+  }
 }
 #endif
+}

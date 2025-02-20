@@ -9,11 +9,18 @@
 #include <visp3/core/vpPoint.h>
 //! [Include]
 
-void computePose(std::vector<VISP_NAMESPACE_ADDRESSING vpPoint> &point, const std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> &ip, const VISP_NAMESPACE_ADDRESSING vpCameraParameters &cam,
-                 bool init, VISP_NAMESPACE_ADDRESSING vpHomogeneousMatrix &cMo);
+namespace PoseHelper
+{
+#ifdef ENABLE_VISP_NAMESPACE
+using namespace VISP_NAMESPACE_NAME;
+#endif
+
+void computePose(std::vector<vpPoint> &point, const std::vector<vpImagePoint> &ip, const vpCameraParameters &cam,
+                 bool init, vpHomogeneousMatrix &cMo);
 
 #if defined(VISP_HAVE_X11) || defined(VISP_HAVE_GDI) || defined(VISP_HAVE_OPENCV)
-std::vector<VISP_NAMESPACE_ADDRESSING vpImagePoint> track(VISP_NAMESPACE_ADDRESSING vpImage<unsigned char> &I, std::vector<VISP_NAMESPACE_ADDRESSING vpDot2> &dot, bool init);
+std::vector<vpImagePoint> track(vpImage<unsigned char> &I, std::vector<vpDot2> &dot, bool init);
 #endif
+}
 
 #endif

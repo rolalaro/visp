@@ -3,6 +3,8 @@
 #if defined(VISP_HAVE_PANDA3D)
 
 #include "load_prc_file.h"
+
+BEGIN_VISP_NAMESPACE
 void vpPanda3DFrameworkManager::initFramework()
 {
   if (!m_frameworkIsOpen) {
@@ -58,5 +60,5 @@ void vpPanda3DFrameworkManager::enableAllRenderers()
     }
   }
 }
-
+END_VISP_NAMESPACE
 #endif

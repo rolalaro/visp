@@ -62,7 +62,7 @@ void performSegmentationHSV(vpTutoCommonData &data)
   vpImageTools::inMask(data.m_I_orig, data.m_mask, data.m_I_segmented);
 }
 
-std::vector< VISP_NAMESPACE_ADDRESSING vpImagePoint > extractSkeleton(vpTutoCommonData &data)
+std::vector<  vpImagePoint > extractSkeleton(vpTutoCommonData &data)
 {
   const int height = data.m_mask.getHeight();
   const int width = data.m_mask.getWidth();

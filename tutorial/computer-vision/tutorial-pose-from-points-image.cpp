@@ -66,7 +66,7 @@ int main(int, char *argv[])
       }
       //! [Tracking]
       //! [Pose estimation]
-      computePose(point, ip, cam, init, cMo);
+      PoseHelper::computePose(point, ip, cam, init, cMo);
       //! [Pose estimation]
       //! [Display pose]
       vpDisplay::displayFrame(I, cMo, cam, 0.05, vpColor::none);

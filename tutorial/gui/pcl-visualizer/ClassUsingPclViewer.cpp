@@ -12,6 +12,8 @@
 #include <visp3/gui/vpColorBlindFriendlyPalette.h>
 #include <visp3/io/vpKeyboard.h>
 
+namespace tutorial
+{
 #ifdef ENABLE_VISP_NAMESPACE
 using namespace VISP_NAMESPACE_NAME;
 #endif
@@ -199,6 +201,7 @@ void ClassUsingPclViewer::threadedMode(const double &addedNoise, const unsigned 
     vpTime::wait(t, 40);
   }
 
+}
 }
 #else
 void dummy_class_using_pcl_visualizer()

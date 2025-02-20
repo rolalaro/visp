@@ -173,14 +173,14 @@ int main(int argc, char *argv[])
 
   //! [Running blocking mode]
   if (opt_mode == DisplayMode::BLOCKING || opt_mode == DisplayMode::BOTH) {
-    ClassUsingPclViewer demo(opt_xlim, opt_ylim, opt_reso);
+    tutorial::ClassUsingPclViewer demo(opt_xlim, opt_ylim, opt_reso);
     demo.blockingMode(opt_addedNoise, opt_order);
   }
   //! [Running blocking mode]
 
   //! [Running threaded mode]
   if (opt_mode == DisplayMode::THREADED || opt_mode == DisplayMode::BOTH) {
-    ClassUsingPclViewer demo(opt_xlim, opt_ylim, opt_reso);
+    tutorial::ClassUsingPclViewer demo(opt_xlim, opt_ylim, opt_reso);
     demo.threadedMode(opt_addedNoise, opt_order);
   }
   //! [Running threaded mode]
