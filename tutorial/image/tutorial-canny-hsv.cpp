@@ -49,9 +49,6 @@ using namespace VISP_NAMESPACE_NAME;
 
 #if (VISP_CXX_STANDARD > VISP_CXX_STANDARD_11)
 
-vpImage<unsigned char> IdebugX;
-vpImage<unsigned char> IdebugY;
-
 template <typename FilterType>
 void computeAbsoluteGradient(const vpImage<FilterType> &GIx, const vpImage<FilterType> &GIy, vpImage<FilterType> &GI, FilterType &min, FilterType &max)
 {
@@ -155,26 +152,29 @@ void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
   const unsigned int rStop = nbRows - 1, cStop = nbCols - 1;
   vpImage<double> Isign(nbRows, nbCols), IabsDiff(nbRows, nbCols);
   // Computation for I[0][0]
+#ifdef BUILD_REFERENCE_METHOD
   if (vpColVector::dotProd((I[0][1] - I[0][0]), I[0][0].toColVector()) < 0.) {
     Isign[0][0] = -1.;
   }
   else {
     Isign[0][0] = 1.;
   }
+#else
+  Isign[0][0] = 1.;
+#endif
 
-  // Computation for the rest of the first row
+// Computation for the rest of the first row
   for (unsigned int c = 1; c < cStop; ++c) {
     if (vpColVector::dotProd((I[0][c + 1] - I[0][c]), (I[0][c] - I[0][c - 1])) < 0.) {
 #ifdef BUILD_REFERENCE_METHOD
-// Inverting sign when cosine distance is negative
-      Isign[0][c] = -1. * Isign[0][c - 1];
-#else
       Isign[0][c] = -1.;
+#else
+      Isign[0][c] = 1.;
 #endif
     }
     else {
 #ifdef BUILD_REFERENCE_METHOD
-      Isign[0][c] = Isign[0][c - 1];
+      Isign[0][c] = 1.;
 #else
       Isign[0][c] = 1.;
 #endif
@@ -184,18 +184,21 @@ void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
   // Computation of the rest of the image
   for (unsigned int r = 1; r < rStop; ++r) {
     // Computation for I[r][0]
+#ifdef BUILD_REFERENCE_METHOD
     if (vpColVector::dotProd((I[r][1] - I[r][0]), I[r][0].toColVector()) < 0.) {
       Isign[r][0] = -1.;
     }
     else {
       Isign[r][0] = 1.;
     }
+#else
+    Isign[r][0] = 1.;
+#endif
     if (checkBooleanPatch(p_mask, r, 0, nbRows, nbCols)) {
 #ifdef BUILD_REFERENCE_METHOD
       IabsDiff[r][0] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][0], I[r][1]);
 #else
-      // IabsDiff[r][0] = I[r][1].V - I[r][0].V;
-      IabsDiff[r][0] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][0], I[r][1]);
+      IabsDiff[r][0] = I[r][1].V - I[r][0].V;
 #endif
     }
 
@@ -206,8 +209,7 @@ void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
 #ifdef BUILD_REFERENCE_METHOD
         IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r][c + 1]);
 #else
-        // IabsDiff[r][c] = I[r][c + 1].V - I[r][c].V;
-        IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r][c + 1]);
+        IabsDiff[r][c] = I[r][c + 1].V - I[r][c].V;
 #endif
 
       }
@@ -215,14 +217,14 @@ void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
       if (vpColVector::dotProd((I[r][c + 1] - I[r][c]), (I[r][c] - I[r][c - 1])) < 0.) {
         // Inverting sign when cosine distance is negative
 #ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = -1. * Isign[r][c - 1];
-#else
         Isign[r][c] = -1.;
+#else
+        Isign[r][c] = 1.;
 #endif
       }
       else {
 #ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = Isign[r][c - 1];
+        Isign[r][c] = 1.;
 #else
         Isign[r][c] = 1.;
 #endif
@@ -241,15 +243,6 @@ void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
           GIx[r][c] += filter[dr + 1] * (Isign[r + dr][c - 1] *  IabsDiff[r + dr][c - 1] +  Isign[r + dr][c] *  IabsDiff[r + dr][c]);
 #endif
         }
-      }
-    }
-  }
-
-  IdebugX.resize(nbRows, nbCols, 0);
-  for (unsigned int r = 0; r < nbRows; ++r) {
-    for (unsigned int c = 0; c < nbCols; ++c) {
-      if (Isign[r][c] > 0.) {
-        IdebugX[r][c] = 255;
       }
     }
   }
@@ -318,10 +311,10 @@ void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
 #ifdef BUILD_REFERENCE_METHOD
       IabsDiff[0][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[0][c], I[1][c]);
 #else
-      // IabsDiff[0][c] = I[1][c].V - I[0][c].V;
-      IabsDiff[0][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[0][c], I[1][c]);
+      IabsDiff[0][c] = I[1][c].V - I[0][c].V;
 #endif
     }
+#ifdef BUILD_REFERENCE_METHOD
     if (vpColVector::dotProd((I[1][c] - I[0][c]), I[0][c].toColVector()) < 0.) {
       // Inverting sign when cosine distance is negative
       Isign[0][c] = -1.;
@@ -329,6 +322,9 @@ void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
     else {
       Isign[0][c] = 1.;
     }
+#else
+    Isign[0][c] = 1.;
+#endif
   }
 
   // Computation for the rest of the image of d and sign
@@ -339,22 +335,21 @@ void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
 #ifdef BUILD_REFERENCE_METHOD
         IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r + 1][c]);
 #else
-        // IabsDiff[r][c] = I[r + 1][c].V - I[r][c].V;
-        IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r + 1][c]);
+        IabsDiff[r][c] = I[r + 1][c].V - I[r][c].V;
 #endif
       }
       // Of the sign
       if (vpColVector::dotProd((I[r +1][c] - I[r][c]), (I[r][c] - I[r - 1][c])) < 0.) {
         // Inverting sign when cosine distance is negative
 #ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = -1. * Isign[r - 1][c];
-#else
         Isign[r][c] = -1.;
+#else
+        Isign[r][c] = 1.;
 #endif
       }
       else {
 #ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = Isign[r - 1][c];
+        Isign[r][c] = 1.;
 #else
         Isign[r][c] = 1.;
 #endif
@@ -374,15 +369,6 @@ void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpIm
           GIy[r][c] += filter[dc + 1] * (Isign[r - 1][c + dc] * IabsDiff[r - 1][c + dc] + Isign[r][c + dc] * IabsDiff[r][c + dc]);
 #endif
         }
-      }
-    }
-  }
-
-  IdebugY.resize(nbRows, nbCols, 0);
-  for (unsigned int r = 0; r < nbRows; ++r) {
-    for (unsigned int c = 0; c < nbCols; ++c) {
-      if (Isign[r][c] > 0.) {
-        IdebugY[r][c] = 255;
       }
     }
   }
@@ -629,8 +615,8 @@ int main(int argc, const char *argv[])
   double tEndGradientHSVUCRef = vpTime::measureTimeMicros();
   computeAbsoluteGradient(GIx, GIy, GI, min, max);
   vpImage<unsigned char> GIdisp_hsvuc_vonly = convertToDisplay(GI, min, max);
-  cannyDetector.setGradients(GIx, GIy);
-  I_canny_hsvuc = cannyDetector.detect(Iin_hsvuc);
+  // cannyDetector.setGradients(GIx, GIy);
+  // I_canny_hsvuc = cannyDetector.detect(Iin_hsvuc);
 
 
   vpImage<vpHSV<unsigned char, true>> Iblur_hsvd;
@@ -740,14 +726,6 @@ int main(int argc, const char *argv[])
     // vpDisplay::displayText(I_canny_hsvuc, vpImagePoint(20, 20), "Click to leave.", vpColor::red);
     vpDisplay::flush(I_canny_hsvuc);
     // vpDisplay::getClick(I_canny_hsvuc);
-
-    auto dispSignX = vpDisplayFactory::createDisplay(IdebugX, -1, -1, "Sign for GIx");
-    vpDisplay::display(IdebugX);
-    vpDisplay::flush(IdebugX);
-
-    auto dispSignY = vpDisplayFactory::createDisplay(IdebugY, -1, -1, "Sign for GIy");
-    vpDisplay::display(IdebugY);
-    vpDisplay::flush(IdebugY);
 
     vpDisplay::displayText(Iload, vpImagePoint(20, 20), "Click to leave.", vpColor::red);
     vpDisplay::flush(Iload);
