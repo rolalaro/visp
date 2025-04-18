@@ -28,16 +28,35 @@
  * WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#include <visp3/rbt/vpRBSilhouetteMeTracker.h>
+#include <visp3/rbt/vpRBCannyMeTracker.h>
 
+#include <array>
 #define VISP_DEBUG_ME_TRACKER 0
 
 BEGIN_VISP_NAMESPACE
+namespace
+{
+float
+getGradientOrientation(const vpImage<float> &dIx, const vpImage<float> &dIy, const int &iter)
+{
+  float gradientOrientation = 0.f;
+  float dx = dIx.bitmap[iter];
+  float dy = dIy.bitmap[iter];
+
+  if (std::abs(dx) < std::numeric_limits<float>::epsilon()) {
+    gradientOrientation = M_PI_2_FLOAT;
+  }
+  else {
+    gradientOrientation = static_cast<float>(std::atan2(dy, dx));
+  }
+  return gradientOrientation;
+}
+}
 
 /**
  * @brief Extract the geometric features from the list of collected silhouette points
 */
-void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &frame, const vpRBFeatureTrackerInput &previousFrame, const vpHomogeneousMatrix &/*cMo*/)
+void vpRBCannyMeTracker::extractFeatures(const vpRBFeatureTrackerInput &frame, const vpRBFeatureTrackerInput &previousFrame, const vpHomogeneousMatrix &/*cMo*/)
 {
   m_controlPoints.clear();
   m_controlPoints.reserve(frame.silhouettePoints.size());
@@ -45,6 +64,31 @@ void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &fra
   const vpHomogeneousMatrix oMc = cMo.inverse();
   const vpColVector oC = oMc.getRotationMatrix() * vpColVector({ 0.0, 0.0, -1.0 });
   const vpImage<unsigned char> &initImage = previousFrame.I.getSize() == frame.I.getSize() ? previousFrame.I : frame.I;
+
+  // generate mask for edge dectector
+  vpRect bbox = frame.renders.boundingBox;
+  unsigned int rstart = bbox.getTop();
+  unsigned int rend = bbox.getBottom();
+  unsigned int left = bbox.getLeft();
+  unsigned int bboxWidth = bbox.getWidth();
+  unsigned int wImage = initImage.getCols();
+  unsigned int nbBites = bboxWidth * sizeof(bool);
+  vpImage<bool> mask(initImage.getRows(), wImage, false);
+  vpImage<bool> rowMask(1, bboxWidth, true);
+
+  for (unsigned int r = rstart; r <= rend; ++r) {
+    std::memcpy(mask.bitmap + r * wImage + left, rowMask.bitmap, nbBites);
+  }
+  m_cannyDetector.setMask(&mask);
+
+  // Compute the edge map
+  vpImage<unsigned char> Icanny = m_cannyDetector.detect(initImage);
+
+  // checkEdgeList(m_cannyDetector, Icanny);
+
+  const std::vector<vpImagePoint> &edgeList = m_cannyDetector.getEdgePointsList();
+  const vpImage<float> &dIx = m_cannyDetector.getGIx();
+  const vpImage<float> &dIy = m_cannyDetector.getGIy();
 
 #ifdef VISP_HAVE_OPENMP
 #pragma omp parallel
@@ -54,12 +98,7 @@ void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &fra
 #ifdef VISP_HAVE_OPENMP
 #pragma omp for nowait
 #endif
-    for (const vpRBSilhouettePoint &sp: frame.silhouettePoints) {
-      // float angle = vpMath::deg(acos(sp.normal * oC));
-      // if (angle > 89.0) {
-      //   continue;
-      // }
-      // std::cout <<  angle << std::endl;
+    for (const vpImagePoint &ep: edgeList) {
 #if VISP_DEBUG_ME_TRACKER
       if (sp.Z == 0) {
         throw vpException(vpException::badValue, "Got a point with Z == 0");
@@ -69,7 +108,27 @@ void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &fra
       }
 #endif
       vpRBSilhouetteControlPoint p;
-      p.buildPoint(static_cast<int>(sp.i), static_cast<int>(sp.j), sp.Z, sp.orientation, sp.normal, cMo, oMc, frame.cam, m_me, sp.isSilhouette);
+      int i = static_cast<int>(ep.get_i());
+      int j = static_cast<int>(ep.get_j());
+
+      if (frame.renders.isSilhouette[i][j]) {
+        continue;
+      }
+
+      float Z = frame.renders.depth[i][j];
+      if (Z <= 0.) {
+        continue;
+      }
+
+      int iter = i * wImage + j;
+      vpColVector normal(3);
+      normal[0] = frame.renders.normals[i][j].R;
+      normal[1] = frame.renders.normals[i][j].G;
+      normal[2] = frame.renders.normals[i][j].B;
+      normal.normalize();
+      float orientation = getGradientOrientation(dIx, dIy, iter);
+
+      p.buildPoint(i, j, frame.renders.depth[i][j], orientation, normal, cMo, oMc, frame.cam, m_me, false);
       if (p.tooCloseToBorder(frame.I.getHeight(), frame.I.getWidth(), m_me.getRange())) {
         continue;
       }
@@ -79,7 +138,7 @@ void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &fra
           maxMaskGradient = p.getMaxMaskGradientAlongLine(frame.mask, m_me.getRange());
         }
         else { // Otherwise, we just check that the site is considered as belonging to the object
-          maxMaskGradient = frame.mask[sp.i][sp.j];
+          maxMaskGradient = frame.mask[i][j];
         }
         if (maxMaskGradient < m_minMaskConfidence) {
           continue;
@@ -98,10 +157,22 @@ void vpRBSilhouetteMeTracker::extractFeatures(const vpRBFeatureTrackerInput &fra
       m_controlPoints.insert(m_controlPoints.end(), localPoints.begin(), localPoints.end());
     }
   }
-
   m_numFeatures = m_controlPoints.size();
 
   m_robust.setMinMedianAbsoluteDeviation(m_robustMadMin / frame.cam.get_px());
+}
+
+void
+vpRBCannyMeTracker::display(const vpCameraParameters &cam, const vpImage<unsigned char> &I, const vpImage<vpRGBa> &IRGB, const vpImage<unsigned char> &depth)  const
+{
+  vpRBBaseMeTracker::display(cam, I, IRGB, depth);
+  const std::vector<vpImagePoint> &edgeList = m_cannyDetector.getEdgePointsList();
+  for (const vpImagePoint &ep: edgeList) {
+    vpDisplay::displayPoint(IRGB, ep, vpColor::yellow);
+  }
+  for (const vpRBSilhouetteControlPoint &ep: m_controlPoints) {
+    vpDisplay::displayPoint(IRGB, ep.icpoint, vpColor::blue);
+  }
 }
 
 END_VISP_NAMESPACE

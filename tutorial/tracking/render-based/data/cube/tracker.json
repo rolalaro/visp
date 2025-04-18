@@ -1,0 +1,84 @@
+{
+  "verbose": {
+    "enabled": false
+  },
+  "camera": {
+    "intrinsics": {
+      "model": "perspectiveWithoutDistortion",
+      "px": 605.146728515625,
+      "py": 604.79150390625,
+      "u0": 325.53253173828125,
+      "v0": 244.95083618164063
+    },
+    "height": 480,
+    "width": 640
+  },
+  "vvs": {
+    "gain": 1.0,
+    "maxIterations": 10,
+    "mu": 0.1,
+    "muIterFactor": 0.1
+  },
+  "model": "data/cube/cube.obj",
+  "silhouetteExtractionSettings": {
+    "threshold": {
+      "type": "relative",
+      "value": 0.1
+    },
+    "sampling": {
+      "samplingRate": 2,
+      "numPoints": 128,
+      "reusePreviousPoints": true
+    }
+  },
+  "mask": {
+    "type": "histogram",
+    "bins": 32,
+    "objectUpdateRate": 0.1,
+    "backgroundUpdateRate": 0.1,
+    "maxDepthError": 0.01,
+    "computeOnlyOnBoundingBox": false
+  },
+  "drift": {
+    "type": "probabilistic",
+    "colorUpdateRate": 0.1,
+    "initialColorSigma": 15.0,
+    "depthSigma": 0.01,
+    "filteringMaxDistance": 0.001,
+    "minDistanceNewPoints": 0.005
+  },
+  "features": [
+    {
+      "type": "cannyMe",
+      "weight": 0.1,
+      "numCandidates": 3,
+      "convergencePixelThreshold": 0.0,
+      "convergenceRatio": 1,
+      "movingEdge": {
+        "maskSize": 7,
+        "minSampleStep": 1.0,
+        "mu": [
+          0.5,
+          0.5
+        ],
+        "nMask": 180,
+        "range": 16,
+        "sampleStep": 1.0,
+        "strip": 2,
+        "thresholdType": "normalized",
+        "threshold": 20
+      },
+      "canny": {
+        "filteringAndGradientType": "gaussianblur+scharr-filtering",
+        "gaussianSize": 5,
+        "gaussianStdev": 1.0,
+        "lowerThresholdRatio": 0.75,
+        "gradientFilterKernelSize": 3,
+        "upperThresholdRatio": 0.9,
+        "nbThread": -1
+      },
+      "useMask": false,
+      "minMaskConfidence": 0.8
+    }
+  ]
+}

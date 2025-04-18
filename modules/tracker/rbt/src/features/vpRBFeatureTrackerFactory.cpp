@@ -30,6 +30,7 @@
 
 #include <visp3/rbt/vpRBFeatureTrackerFactory.h>
 
+#include <visp3/rbt/vpRBCannyMeTracker.h>
 #include <visp3/rbt/vpRBKltTracker.h>
 #include <visp3/rbt/vpRBSilhouetteCCDTracker.h>
 #include <visp3/rbt/vpRBSilhouetteMeTracker.h>
@@ -56,6 +57,11 @@ vpRBFeatureTrackerFactory::vpRBFeatureTrackerFactory()
   });
   registerType("depth", [](const nlohmann::json &j) {
     std::shared_ptr<vpRBDenseDepthTracker> p(new vpRBDenseDepthTracker());
+    p->loadJsonConfiguration(j);
+    return p;
+  });
+  registerType("cannyMe", [](const nlohmann::json &j) {
+    std::shared_ptr<vpRBCannyMeTracker> p(new vpRBCannyMeTracker());
     p->loadJsonConfiguration(j);
     return p;
   });
