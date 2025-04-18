@@ -149,10 +149,10 @@ public:
    */
   friend void to_json(nlohmann::json &j, const vpCannyEdgeDetection &detector);
 #endif
-  //@}
+//@}
 
-  /** @name  Detection methods */
-  //@{
+/** @name  Detection methods */
+//@{
 #ifdef HAVE_OPENCV_CORE
   /**
    * \brief Detect the edges in an image.
@@ -242,6 +242,19 @@ public:
     m_dIx = dIx;
     m_dIy = dIy;
     m_areGradientAvailable = true;
+  }
+
+  /**
+   * \brief Set the Gradients of the image that will be processed.
+   *
+   * \param[in] dIx : Gradient along the horizontal axis of the image.
+   * \param[in] dIy : Gradient along the vertical axis of the image.
+   */
+  inline void setGradientsManitudeAndOrientation(const vpImage<float> &GImag, const vpImage<float> &GItheta)
+  {
+    m_GImag = GImag;
+    m_GItheta = GItheta;
+    m_areGradientMagOriAvailable = true;
   }
 
   /**
@@ -471,8 +484,12 @@ private:
   vpArray2D<float> m_gradientFilterY; /*!< Array that contains the gradient filter kernel (Sobel or Scharr) along the Y-axis.*/
   vpImage<float> m_dIx; /*!< X-axis gradient.*/
   vpImage<float> m_dIy; /*!< Y-axis gradient.*/
+  vpImage<float> m_GImag;
+  vpImage<float> m_GItheta;
+  bool m_areGradientMagOriAvailable;
+  bool m_areGragientMagOriComputed;
 
-  // // Edge thining attributes
+// // Edge thining attributes
   std::vector<std::pair<unsigned int, float>> m_edgeCandidateAndGradient; /*!< Map that contains point image coordinates and corresponding gradient value.*/
 
   // // Hysteresis thresholding attributes
@@ -577,7 +594,7 @@ private:
    */
   void performEdgeTracking();
   //@}
-};
+  };
 
 #ifdef VISP_HAVE_NLOHMANN_JSON
 inline void from_json(const nlohmann::json &j, vpCannyEdgeDetection &detector)

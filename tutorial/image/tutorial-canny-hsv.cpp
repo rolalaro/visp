@@ -89,300 +89,493 @@ bool checkBooleanMask(const vpImage<bool> *p_mask, const unsigned int &r, const 
   return computeVal;
 }
 
-template <typename ArithmeticType, typename FilterType, bool useFullScale>
-void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIx, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+bool checkBooleanMask(const vpImage<bool> *p_mask, const unsigned int &iter)
 {
-  const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
-  GIx.resize(nbRows, nbCols, 0.);
-  std::vector<FilterType> filter(3);
-  FilterType scale;
-  std::string name;
-  switch (type) {
-  case vpImageFilter::CANNY_COUNT_FILTERING:
-    // Prewitt case
-    filter = { 1., 1., 1. };
-    scale = 6.;
-    name = "Prewitt";
-    break;
-  case vpImageFilter::CANNY_GBLUR_SOBEL_FILTERING:
-    filter = { 1., 2., 1. };
-    scale = 8.;
-    name = "Sobel";
-    break;
-  case vpImageFilter::CANNY_GBLUR_SCHARR_FILTERING:
-    filter = { 3., 10., 3. };
-    scale = 32.;
-    name = "Scharr";
-    break;
-  default:
-    throw(vpException(vpException::badValue, "Wrong type of filtering"));
+  bool computeVal = true;
+  if (p_mask != nullptr) {
+    computeVal = p_mask->bitmap[iter];
   }
-  // std::cout << "Using " << name << " filter" << std::endl;
-  for (unsigned char i = 0; i < 3; ++i) {
-    filter[i] = filter[i] / scale;
-  }
+  return computeVal;
+}
 
-  auto checkBooleanPatch = [](const vpImage<bool> *p_mask, const unsigned int &r, const unsigned int &c, const unsigned int &h, const unsigned int &w)
-    {
-      if (!p_mask) {
-        return true;
-      }
-      bool hasToCompute = (*p_mask)[r][c];
-
-      if (c < w - 1) { // We do not compute gradient on the last column
-        hasToCompute |= (*p_mask)[r][c + 1];
-        if (r < h - 1) { // We do not compute gradient on the last row
-          hasToCompute |= (*p_mask)[r + 1][c + 1];
-        }
-      }
-
-      if (r < h - 1) { // We do not compute gradient on the last row
-        hasToCompute |= (*p_mask)[r + 1][c];
-      }
-
-      if (r > 1) { // We do not compute gradient on the first row
-        hasToCompute |= (*p_mask)[r - 1][c];
-        if (c < w - 1) { // We do not compute gradient on the last column
-          hasToCompute |= (*p_mask)[r - 1][c + 1];
-        }
-      }
-      return hasToCompute;
-    };
-
-  const unsigned int rStop = nbRows - 1, cStop = nbCols - 1;
-  vpImage<double> Isign(nbRows, nbCols), IabsDiff(nbRows, nbCols);
-  // Computation for I[0][0]
-#ifdef BUILD_REFERENCE_METHOD
-  if (vpColVector::dotProd((I[0][1] - I[0][0]), I[0][0].toColVector()) < 0.) {
-    Isign[0][0] = -1.;
-  }
-  else {
-    Isign[0][0] = 1.;
-  }
-#else
-  Isign[0][0] = 1.;
-#endif
-
-// Computation for the rest of the first row
-  for (unsigned int c = 1; c < cStop; ++c) {
-    if (vpColVector::dotProd((I[0][c + 1] - I[0][c]), (I[0][c] - I[0][c - 1])) < 0.) {
-#ifdef BUILD_REFERENCE_METHOD
-      Isign[0][c] = -1.;
-#else
-      Isign[0][c] = 1.;
-#endif
-    }
-    else {
-#ifdef BUILD_REFERENCE_METHOD
-      Isign[0][c] = 1.;
-#else
-      Isign[0][c] = 1.;
-#endif
-    }
-  }
-
-  // Computation of the rest of the image
-  for (unsigned int r = 1; r < rStop; ++r) {
-    // Computation for I[r][0]
-#ifdef BUILD_REFERENCE_METHOD
-    if (vpColVector::dotProd((I[r][1] - I[r][0]), I[r][0].toColVector()) < 0.) {
-      Isign[r][0] = -1.;
-    }
-    else {
-      Isign[r][0] = 1.;
-    }
-#else
-    Isign[r][0] = 1.;
-#endif
-    if (checkBooleanPatch(p_mask, r, 0, nbRows, nbCols)) {
-#ifdef BUILD_REFERENCE_METHOD
-      IabsDiff[r][0] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][0], I[r][1]);
-#else
-      IabsDiff[r][0] = I[r][1].V - I[r][0].V;
-#endif
-    }
-
-      // Computation for all the other columns
-    for (unsigned int c = 1; c < cStop; ++c) {
-      if (checkBooleanPatch(p_mask, r, c, nbRows, nbCols)) {
-        // Of the absolute value of the distance
-#ifdef BUILD_REFERENCE_METHOD
-        IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r][c + 1]);
-#else
-        IabsDiff[r][c] = I[r][c + 1].V - I[r][c].V;
-#endif
-
-      }
-      // Of the sign
-      if (vpColVector::dotProd((I[r][c + 1] - I[r][c]), (I[r][c] - I[r][c - 1])) < 0.) {
-        // Inverting sign when cosine distance is negative
-#ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = -1.;
-#else
-        Isign[r][c] = 1.;
-#endif
-      }
-      else {
-#ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = 1.;
-#else
-        Isign[r][c] = 1.;
-#endif
-      }
-    }
-  }
-
-  for (unsigned int r = 1; r < rStop; ++r) {
-    for (unsigned int c = 1; c < cStop; ++c) {
-      if (checkBooleanMask(p_mask, r, c)) {
-        GIx[r][c] = 0.;
-        for (int dr = -1; dr <= 1; ++dr) {
-#ifdef BUILD_REFERENCE_METHOD
-          GIx[r][c] += filter[dr + 1] * (Isign[r + dr][c - 1] *  IabsDiff[r + dr][c - 1] +  Isign[r + dr][c] *  IabsDiff[r + dr][c]);
-#else
-          GIx[r][c] += filter[dr + 1] * (Isign[r + dr][c - 1] *  IabsDiff[r + dr][c - 1] +  Isign[r + dr][c] *  IabsDiff[r + dr][c]);
-#endif
-        }
-      }
+void scaleFilter(vpArray2D<float> &filter, const float &scale)
+{
+  unsigned int filter_rows = filter.getRows();
+  unsigned int filter_col = filter.getCols();
+  for (unsigned int r = 0; r < filter_rows; ++r) {
+    for (unsigned int c = 0; c < filter_col; ++c) {
+      filter[r][c] = filter[r][c] * scale;
     }
   }
 }
 
-template <typename ArithmeticType, typename FilterType, bool useFullScale>
-void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIy, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+// template <typename ArithmeticType, typename FilterType, bool useFullScale>
+// void gradientFilterX(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIx, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+// {
+//   const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
+//   GIx.resize(nbRows, nbCols, 0.);
+//   std::vector<FilterType> filter(3);
+//   FilterType scale;
+//   std::string name;
+//   switch (type) {
+//   case vpImageFilter::CANNY_COUNT_FILTERING:
+//     // Prewitt case
+//     filter = { 1., 1., 1. };
+//     scale = 6.;
+//     name = "Prewitt";
+//     break;
+//   case vpImageFilter::CANNY_GBLUR_SOBEL_FILTERING:
+//     filter = { 1., 2., 1. };
+//     scale = 8.;
+//     name = "Sobel";
+//     break;
+//   case vpImageFilter::CANNY_GBLUR_SCHARR_FILTERING:
+//     filter = { 3., 10., 3. };
+//     scale = 32.;
+//     name = "Scharr";
+//     break;
+//   default:
+//     throw(vpException(vpException::badValue, "Wrong type of filtering"));
+//   }
+//   // std::cout << "Using " << name << " filter" << std::endl;
+//   for (unsigned char i = 0; i < 3; ++i) {
+//     filter[i] = filter[i] / scale;
+//   }
+
+//   auto checkBooleanPatch = [](const vpImage<bool> *p_mask, const unsigned int &r, const unsigned int &c, const unsigned int &h, const unsigned int &w)
+//     {
+//       if (!p_mask) {
+//         return true;
+//       }
+//       bool hasToCompute = (*p_mask)[r][c];
+
+//       if (c < w - 1) { // We do not compute gradient on the last column
+//         hasToCompute |= (*p_mask)[r][c + 1];
+//         if (r < h - 1) { // We do not compute gradient on the last row
+//           hasToCompute |= (*p_mask)[r + 1][c + 1];
+//         }
+//       }
+
+//       if (r < h - 1) { // We do not compute gradient on the last row
+//         hasToCompute |= (*p_mask)[r + 1][c];
+//       }
+
+//       if (r > 1) { // We do not compute gradient on the first row
+//         hasToCompute |= (*p_mask)[r - 1][c];
+//         if (c < w - 1) { // We do not compute gradient on the last column
+//           hasToCompute |= (*p_mask)[r - 1][c + 1];
+//         }
+//       }
+//       return hasToCompute;
+//     };
+
+//   const unsigned int rStop = nbRows - 1, cStop = nbCols - 1;
+//   vpImage<double> Isign(nbRows, nbCols), IabsDiff(nbRows, nbCols);
+//   // Computation for I[0][0]
+// #ifdef BUILD_REFERENCE_METHOD
+//   if (vpColVector::dotProd((I[0][1] - I[0][0]), I[0][0].toColVector()) < 0.) {
+//     Isign[0][0] = -1.;
+//   }
+//   else {
+//     Isign[0][0] = 1.;
+//   }
+// #else
+//   Isign[0][0] = 1.;
+// #endif
+
+// // Computation for the rest of the first row
+//   for (unsigned int c = 1; c < cStop; ++c) {
+//     if (vpColVector::dotProd((I[0][c + 1] - I[0][c]), (I[0][c] - I[0][c - 1])) < 0.) {
+// #ifdef BUILD_REFERENCE_METHOD
+//       Isign[0][c] = -1.;
+// #else
+//       Isign[0][c] = 1.;
+// #endif
+//     }
+//     else {
+// #ifdef BUILD_REFERENCE_METHOD
+//       Isign[0][c] = 1.;
+// #else
+//       Isign[0][c] = 1.;
+// #endif
+//     }
+//   }
+
+//   // Computation of the rest of the image
+//   for (unsigned int r = 1; r < rStop; ++r) {
+//     // Computation for I[r][0]
+// #ifdef BUILD_REFERENCE_METHOD
+//     if (vpColVector::dotProd((I[r][1] - I[r][0]), I[r][0].toColVector()) < 0.) {
+//       Isign[r][0] = -1.;
+//     }
+//     else {
+//       Isign[r][0] = 1.;
+//     }
+// #else
+//     Isign[r][0] = 1.;
+// #endif
+//     if (checkBooleanPatch(p_mask, r, 0, nbRows, nbCols)) {
+// #ifdef BUILD_REFERENCE_METHOD
+//       IabsDiff[r][0] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][0], I[r][1]);
+// #else
+//       IabsDiff[r][0] = I[r][1].V - I[r][0].V;
+// #endif
+//     }
+
+//       // Computation for all the other columns
+//     for (unsigned int c = 1; c < cStop; ++c) {
+//       if (checkBooleanPatch(p_mask, r, c, nbRows, nbCols)) {
+//         // Of the absolute value of the distance
+// #ifdef BUILD_REFERENCE_METHOD
+//         IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r][c + 1]);
+// #else
+//         IabsDiff[r][c] = I[r][c + 1].V - I[r][c].V;
+// #endif
+
+//       }
+//       // Of the sign
+//       if (vpColVector::dotProd((I[r][c + 1] - I[r][c]), (I[r][c] - I[r][c - 1])) < 0.) {
+//         // Inverting sign when cosine distance is negative
+// #ifdef BUILD_REFERENCE_METHOD
+//         Isign[r][c] = -1.;
+// #else
+//         Isign[r][c] = 1.;
+// #endif
+//       }
+//       else {
+// #ifdef BUILD_REFERENCE_METHOD
+//         Isign[r][c] = 1.;
+// #else
+//         Isign[r][c] = 1.;
+// #endif
+//       }
+//     }
+//   }
+
+//   for (unsigned int r = 1; r < rStop; ++r) {
+//     for (unsigned int c = 1; c < cStop; ++c) {
+//       if (checkBooleanMask(p_mask, r, c)) {
+//         GIx[r][c] = 0.;
+//         for (int dr = -1; dr <= 1; ++dr) {
+// #ifdef BUILD_REFERENCE_METHOD
+//           GIx[r][c] += filter[dr + 1] * (Isign[r + dr][c - 1] *  IabsDiff[r + dr][c - 1] +  Isign[r + dr][c] *  IabsDiff[r + dr][c]);
+// #else
+//           GIx[r][c] += filter[dr + 1] * (Isign[r + dr][c - 1] *  IabsDiff[r + dr][c - 1] +  Isign[r + dr][c] *  IabsDiff[r + dr][c]);
+// #endif
+//         }
+//       }
+//     }
+//   }
+// }
+
+// template <typename ArithmeticType, typename FilterType, bool useFullScale>
+// void gradientFilterY(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIy, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+// {
+//   const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
+//   std::vector<FilterType> filter(3);
+//   FilterType scale;
+//   switch (type) {
+//   case vpImageFilter::CANNY_COUNT_FILTERING:
+//     // Prewitt case
+//     filter = { 1., 1., 1. };
+//     scale = 6.;
+//     break;
+//   case vpImageFilter::CANNY_GBLUR_SOBEL_FILTERING:
+//     filter = { 1., 2., 1. };
+//     scale = 8.;
+//     break;
+//   case vpImageFilter::CANNY_GBLUR_SCHARR_FILTERING:
+//     filter = { 3., 10., 3. };
+//     scale = 32.;
+//     break;
+//   default:
+//     throw(vpException(vpException::badValue, "Wrong type of filtering"));
+//   }
+//   for (unsigned char i = 0; i < 3; ++i) {
+//     filter[i] = filter[i] / scale;
+//   }
+
+//   const unsigned int rStop = nbRows - 1, cStop = nbCols - 1;
+//   vpImage<double> Isign(nbRows, nbCols), IabsDiff(nbRows, nbCols);
+
+//   auto checkBooleanPatch = [](const vpImage<bool> *p_mask, const unsigned int &r, const unsigned int &c, const unsigned int &h, const unsigned int &w)
+//     {
+//       if (!p_mask) {
+//         return true;
+//       }
+
+//       bool hasToCompute = (*p_mask)[r][c];
+//       if (c < w - 1) { // We do not compute gradient on the last column
+//         hasToCompute |= (*p_mask)[r][c + 1];
+//         if (r < h - 1) { // We do not compute gradient on the last row
+//           hasToCompute |= (*p_mask)[r + 1][c + 1];
+//         }
+//       }
+
+//       if (r < h - 1) { // We do not compute gradient on the last row
+//         hasToCompute |= (*p_mask)[r + 1][c];
+//       }
+
+//       if (c > 1) { // We do not compute gradient on the first column
+//         hasToCompute |= (*p_mask)[r][c - 1];
+//         if (r < h - 1) { // We do not compute gradient on the last row
+//           hasToCompute |= (*p_mask)[r + 1][c - 1];
+//         }
+//       }
+//       return hasToCompute;
+//     };
+
+//   // Computation for the first row
+//   for (unsigned int c = 0; c < nbCols; ++c) {
+//     if (checkBooleanPatch(p_mask, 0, c, nbRows, nbCols)) {
+// #ifdef BUILD_REFERENCE_METHOD
+//       IabsDiff[0][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[0][c], I[1][c]);
+// #else
+//       IabsDiff[0][c] = I[1][c].V - I[0][c].V;
+// #endif
+//     }
+// #ifdef BUILD_REFERENCE_METHOD
+//     if (vpColVector::dotProd((I[1][c] - I[0][c]), I[0][c].toColVector()) < 0.) {
+//       // Inverting sign when cosine distance is negative
+//       Isign[0][c] = -1.;
+//     }
+//     else {
+//       Isign[0][c] = 1.;
+//     }
+// #else
+//     Isign[0][c] = 1.;
+// #endif
+//   }
+
+//   // Computation for the rest of the image of d and sign
+//   for (unsigned int r = 1; r < rStop; ++r) {
+//     for (unsigned int c = 0; c < nbCols; ++c) {
+//       // Of the absolute value of the distance
+//       if (checkBooleanPatch(p_mask, r, c, nbRows, nbCols)) {
+// #ifdef BUILD_REFERENCE_METHOD
+//         IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r + 1][c]);
+// #else
+//         IabsDiff[r][c] = I[r + 1][c].V - I[r][c].V;
+// #endif
+//       }
+//       // Of the sign
+//       if (vpColVector::dotProd((I[r +1][c] - I[r][c]), (I[r][c] - I[r - 1][c])) < 0.) {
+//         // Inverting sign when cosine distance is negative
+// #ifdef BUILD_REFERENCE_METHOD
+//         Isign[r][c] = -1.;
+// #else
+//         Isign[r][c] = 1.;
+// #endif
+//       }
+//       else {
+// #ifdef BUILD_REFERENCE_METHOD
+//         Isign[r][c] = 1.;
+// #else
+//         Isign[r][c] = 1.;
+// #endif
+//       }
+//     }
+//   }
+
+//   // Computation of the gradient
+//   for (unsigned int r = 1; r < rStop; ++r) {
+//     for (unsigned int c = 1; c < cStop; ++c) {
+//       if (checkBooleanMask(p_mask, r, c)) {
+//         GIy[r][c] = 0.;
+//         for (int dc = -1; dc <= 1; ++dc) {
+// #ifdef BUILD_REFERENCE_METHOD
+//           GIy[r][c] += filter[dc + 1] * (Isign[r - 1][c + dc] * IabsDiff[r - 1][c + dc] + Isign[r][c + dc] * IabsDiff[r][c + dc]);
+// #else
+//           GIy[r][c] += filter[dc + 1] * (Isign[r - 1][c + dc] * IabsDiff[r - 1][c + dc] + Isign[r][c + dc] * IabsDiff[r][c + dc]);
+// #endif
+//         }
+//       }
+//     }
+//   }
+// }
+
+// template <typename ArithmeticType, typename FilterType, bool useFullScale>
+// void gradientFilter(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIx, vpImage<FilterType> &GIy, const int &nbThread, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+// {
+//   (void)nbThread;
+//   const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
+//   GIx.resize(nbRows, nbCols, 0.);
+//   GIy.resize(nbRows, nbCols, 0.);
+//   gradientFilterX(I, GIx, p_mask, type);
+//   gradientFilterY(I, GIy, p_mask, type);
+// }
+
+template <typename InputType, typename FilterType>
+void gradientFilter(const vpImage<InputType> &I, vpImage<FilterType> &GIMag, vpImage<FilterType> &GITheta,
+                    const int &maxThread, const vpImage<bool> *p_mask,
+                    const vpImageFilter::vpCannyFilteringAndGradientType &type,
+                    FilterType &min, FilterType &max)
 {
   const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
-  std::vector<FilterType> filter(3);
-  FilterType scale;
+  GIMag.resize(nbRows, nbCols, 0.);
+  GITheta.resize(nbRows, nbCols, 0.);
+
+  // Blur the original image
+  vpImage<InputType> Iblur;
+  vpImageFilter::gaussianBlur(I, Iblur, 5, 1., true, p_mask);
+
+  // Initialize gradient filter
+  const unsigned int gradientFilterKernelSize = 3;
+  vpArray2D<FilterType> filterX(gradientFilterKernelSize, gradientFilterKernelSize), filterY(gradientFilterKernelSize, gradientFilterKernelSize);
+  FilterType scaleX = 1.f;
+  FilterType scaleY = 1.f;
   switch (type) {
-  case vpImageFilter::CANNY_COUNT_FILTERING:
-    // Prewitt case
-    filter = { 1., 1., 1. };
-    scale = 6.;
-    break;
   case vpImageFilter::CANNY_GBLUR_SOBEL_FILTERING:
-    filter = { 1., 2., 1. };
-    scale = 8.;
+    scaleX = vpImageFilter::getSobelKernelX(filterX.data, (gradientFilterKernelSize - 1) / 2);
+    scaleY = vpImageFilter::getSobelKernelY(filterY.data, (gradientFilterKernelSize - 1) / 2);
     break;
   case vpImageFilter::CANNY_GBLUR_SCHARR_FILTERING:
-    filter = { 3., 10., 3. };
-    scale = 32.;
+    scaleX = vpImageFilter::getScharrKernelX(filterX.data, (gradientFilterKernelSize - 1) / 2);
+    scaleY = vpImageFilter::getScharrKernelY(filterY.data, (gradientFilterKernelSize - 1) / 2);
     break;
   default:
     throw(vpException(vpException::badValue, "Wrong type of filtering"));
   }
-  for (unsigned char i = 0; i < 3; ++i) {
-    filter[i] = filter[i] / scale;
+  scaleFilter(filterX, scaleX);
+  scaleFilter(filterY, scaleY);
+
+  // Compute gradients
+  unsigned int size = I.getSize();
+  vpImage<FilterType> Iblur0(nbRows, nbCols), Iblur1(nbRows, nbCols), Iblur2(nbRows, nbCols);
+#pragma omp parallel for
+  for (unsigned int iter = 0; iter < size; ++iter) {
+    Iblur0.bitmap[iter] = vpColorGetter<0>::get(Iblur.bitmap[iter]);
+    Iblur1.bitmap[iter] = vpColorGetter<1>::get(Iblur.bitmap[iter]);
+    Iblur2.bitmap[iter] = vpColorGetter<2>::get(Iblur.bitmap[iter]);
   }
 
-  const unsigned int rStop = nbRows - 1, cStop = nbCols - 1;
-  vpImage<double> Isign(nbRows, nbCols), IabsDiff(nbRows, nbCols);
+  vpImage<FilterType> dIx0, dIx1, dIx2, dIy0, dIy1, dIy2;
+  vpImageFilter::filter(Iblur0, dIx0, filterX, true, p_mask);
+  vpImageFilter::filter(Iblur1, dIx1, filterX, true, p_mask);
+  vpImageFilter::filter(Iblur2, dIx2, filterX, true, p_mask);
+  vpImageFilter::filter(Iblur0, dIy0, filterY, true, p_mask);
+  vpImageFilter::filter(Iblur1, dIy1, filterY, true, p_mask);
+  vpImageFilter::filter(Iblur2, dIy2, filterY, true, p_mask);
 
-  auto checkBooleanPatch = [](const vpImage<bool> *p_mask, const unsigned int &r, const unsigned int &c, const unsigned int &h, const unsigned int &w)
+  min = std::numeric_limits<FilterType>::max();
+  max = -1.;
+  unsigned int istart = 0, istop = size;
+  unsigned int iam, nt, ipoints, npoints(size);
+  int nbThread = maxThread;
+  if (nbThread < 0) {
+    nbThread = omp_get_max_threads();
+  }
+#pragma omp parallel default(shared) private(iam, nt, ipoints, istart, istop) num_threads(nbThread)
+  {
+    iam = omp_get_thread_num();
+    nt = omp_get_num_threads();
+    ipoints = npoints / nt;
+    // size of partition
+    istart = iam * ipoints; // starting array index
+    if (iam == nt-1) {
+      // last thread may do more
+      ipoints = npoints - istart;
+    }
+    istop = istart + ipoints;
+
+    FilterType localMin = std::numeric_limits<FilterType>::max();
+    FilterType localMax = -1.;
+
+    for (unsigned int iter = istart; iter < istop; ++iter) {
+      vpColVector GIx(3), GIy(3);
+      if (checkBooleanMask(p_mask, iter)) {
+        GIx[0] = dIx0.bitmap[iter];
+        GIx[1] = dIx1.bitmap[iter];
+        GIx[2] = dIx2.bitmap[iter];
+        GIy[0] = dIy0.bitmap[iter];
+        GIy[1] = dIy1.bitmap[iter];
+        GIy[2] = dIy2.bitmap[iter];
+        double GIxGIx = vpColVector::dotProd(GIx, GIx);
+        double GIyGIy = vpColVector::dotProd(GIy, GIy);
+        double GIxGIy = vpColVector::dotProd(GIx, GIy);
+
+        GIMag.bitmap[iter] = GIxGIx + GIyGIy;
+        if (std::abs(GIxGIx - GIyGIy) < std::numeric_limits<float>::epsilon()) {
+          GITheta.bitmap[iter] = M_PI_2_FLOAT;
+        }
+        else {
+          GITheta.bitmap[iter] = 0.5 * std::atan2(2 * GIxGIy, (GIxGIx - GIyGIy));
+        }
+        localMin = std::min(GIMag.bitmap[iter], localMin);
+        localMax = std::max(GIMag.bitmap[iter], localMax);
+      }
+    }
+#pragma omp critical
     {
-      if (!p_mask) {
-        return true;
-      }
-
-      bool hasToCompute = (*p_mask)[r][c];
-      if (c < w - 1) { // We do not compute gradient on the last column
-        hasToCompute |= (*p_mask)[r][c + 1];
-        if (r < h - 1) { // We do not compute gradient on the last row
-          hasToCompute |= (*p_mask)[r + 1][c + 1];
-        }
-      }
-
-      if (r < h - 1) { // We do not compute gradient on the last row
-        hasToCompute |= (*p_mask)[r + 1][c];
-      }
-
-      if (c > 1) { // We do not compute gradient on the first column
-        hasToCompute |= (*p_mask)[r][c - 1];
-        if (r < h - 1) { // We do not compute gradient on the last row
-          hasToCompute |= (*p_mask)[r + 1][c - 1];
-        }
-      }
-      return hasToCompute;
-    };
-
-  // Computation for the first row
-  for (unsigned int c = 0; c < nbCols; ++c) {
-    if (checkBooleanPatch(p_mask, 0, c, nbRows, nbCols)) {
-#ifdef BUILD_REFERENCE_METHOD
-      IabsDiff[0][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[0][c], I[1][c]);
-#else
-      IabsDiff[0][c] = I[1][c].V - I[0][c].V;
-#endif
-    }
-#ifdef BUILD_REFERENCE_METHOD
-    if (vpColVector::dotProd((I[1][c] - I[0][c]), I[0][c].toColVector()) < 0.) {
-      // Inverting sign when cosine distance is negative
-      Isign[0][c] = -1.;
-    }
-    else {
-      Isign[0][c] = 1.;
-    }
-#else
-    Isign[0][c] = 1.;
-#endif
-  }
-
-  // Computation for the rest of the image of d and sign
-  for (unsigned int r = 1; r < rStop; ++r) {
-    for (unsigned int c = 0; c < nbCols; ++c) {
-      // Of the absolute value of the distance
-      if (checkBooleanPatch(p_mask, r, c, nbRows, nbCols)) {
-#ifdef BUILD_REFERENCE_METHOD
-        IabsDiff[r][c] = vpHSV<ArithmeticType, useFullScale>::template mahalanobisDistance<double>(I[r][c], I[r + 1][c]);
-#else
-        IabsDiff[r][c] = I[r + 1][c].V - I[r][c].V;
-#endif
-      }
-      // Of the sign
-      if (vpColVector::dotProd((I[r +1][c] - I[r][c]), (I[r][c] - I[r - 1][c])) < 0.) {
-        // Inverting sign when cosine distance is negative
-#ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = -1.;
-#else
-        Isign[r][c] = 1.;
-#endif
-      }
-      else {
-#ifdef BUILD_REFERENCE_METHOD
-        Isign[r][c] = 1.;
-#else
-        Isign[r][c] = 1.;
-#endif
-      }
+      min = std::min(localMin, min);
+      max = std::max(localMax, max);
     }
   }
-
-  // Computation of the gradient
-  for (unsigned int r = 1; r < rStop; ++r) {
-    for (unsigned int c = 1; c < cStop; ++c) {
-      if (checkBooleanMask(p_mask, r, c)) {
-        GIy[r][c] = 0.;
-        for (int dc = -1; dc <= 1; ++dc) {
-#ifdef BUILD_REFERENCE_METHOD
-          GIy[r][c] += filter[dc + 1] * (Isign[r - 1][c + dc] * IabsDiff[r - 1][c + dc] + Isign[r][c + dc] * IabsDiff[r][c + dc]);
-#else
-          GIy[r][c] += filter[dc + 1] * (Isign[r - 1][c + dc] * IabsDiff[r - 1][c + dc] + Isign[r][c + dc] * IabsDiff[r][c + dc]);
-#endif
-        }
-      }
-    }
-  }
+  std::cout << "Min = " << min << std::endl;
+  std::cout << "Max = " << max << std::endl;
 }
 
-template <typename ArithmeticType, typename FilterType, bool useFullScale>
-void gradientFilter(const vpImage<vpHSV<ArithmeticType, useFullScale>> &I, vpImage<FilterType> &GIx, vpImage<FilterType> &GIy, const int &nbThread, const vpImage<bool> *p_mask, const vpImageFilter::vpCannyFilteringAndGradientType &type)
+template<typename FilterType>
+vpImage<unsigned char> showCannyLikeGradient(const vpImage<FilterType> &GImag, const vpImage<bool> *p_mask,
+                           const FilterType &min, const FilterType &max,
+                           const float &lowerRatio, const float &upperRatio,
+                           float &lowerThresh, float &upperThresh)
 {
-  (void)nbThread;
-  const unsigned int nbRows = I.getRows(), nbCols = I.getCols();
-  GIx.resize(nbRows, nbCols, 0.);
-  GIy.resize(nbRows, nbCols, 0.);
-  gradientFilterX(I, GIx, p_mask, type);
-  gradientFilterY(I, GIy, p_mask, type);
+  const unsigned int w = GImag.getWidth();
+  const unsigned int h = GImag.getHeight();
+  const unsigned int size = GImag.getSize();
+
+  int nbThread = 1;
+
+  // Compute the histogram
+#ifdef VISP_HAVE_THREADS
+  nbThread = std::max(static_cast<int>(std::thread::hardware_concurrency()), 1); // The method can return 0 when it is not able to detect the supported number of threads.
+#endif
+  const unsigned int nbBins = 1024;
+  vpHistogram hist(nbBins);
+  hist.setMask(p_mask);
+  FilterType step = 0.;
+  hist.calculate<FilterType>(GImag, min, max, step, nbBins, nbThread);
+  float totalNbPixels = static_cast<float>(hist.getTotal());
+  float accu = 0;
+  float t = upperRatio * totalNbPixels;
+  float tLow = lowerRatio * totalNbPixels;
+  float bon = 0;
+  unsigned int i = 0;
+  bool notFound = true, notFoundLower = true;
+  lowerThresh = 0.;
+  while ((i < nbBins) && notFound) {
+    float tf = static_cast<float>(hist[i]);
+    accu = accu + tf;
+    if ((accu > tLow) && notFoundLower) {
+      lowerThresh = static_cast<float>(i) *  static_cast<float>(step) + min;
+      notFoundLower = false;
+    }
+    if (accu > t) {
+      bon = static_cast<float>(i);
+      notFound = false;
+    }
+    ++i;
+  }
+  if (notFound) {
+    std::stringstream errMsg;
+    errMsg << "Could not find a bin for which " << upperRatio * 100.f << " percents of the pixels had a gradient lower than the upper threshold.";
+    throw(vpException(vpException::fatalError, errMsg.str()));
+  }
+  upperThresh = bon *  static_cast<float>(step) + min;
+  lowerThresh = std::max<float>(lowerThresh, std::numeric_limits<float>::epsilon());
+  vpImage<unsigned char> Idisp(h, w, 0);
+  for (unsigned int iter = 0; iter < size; ++iter) {
+    if (GImag.bitmap[iter] >= upperThresh) {
+      Idisp.bitmap[iter] = 255;
+    }
+    else if (GImag.bitmap[iter] >= lowerThresh) {
+      Idisp.bitmap[iter] = 127;
+    }
+  }
+  std::cout << "Lower thresh = " << lowerThresh << std::endl;
+  std::cout << "Upper thresh = " << upperThresh << std::endl;
+  return Idisp;
 }
 
 typedef struct SoftwareArguments
@@ -613,14 +806,18 @@ int main(int argc, const char *argv[])
   vpImage<unsigned char> GIdisp_hsvuc_imgfilter = convertToDisplay(GI, min, max);
 
   double tStartGradientHSVUCRef = vpTime::measureTimeMicros();
-  gradientFilter(Iblur_hsvuc, GIx, GIy, options.m_nbThread, p_mask, options.m_filteringType);
+  vpImage<FilterType> GImag, GItheta;
+  gradientFilter(Iin_hsvuc, GImag, GItheta, options.m_nbThread, p_mask, options.m_filteringType, min, max);
   double tEndGradientHSVUCRef = vpTime::measureTimeMicros();
-  computeAbsoluteGradient(GIx, GIy, GI, min, max);
-  vpImage<unsigned char> GIdisp_hsvuc_vonly = convertToDisplay(GI, min, max);
-  // cannyDetector.reinit();
-  // cannyDetector.setMask(p_mask);
-  // cannyDetector.setGradients(GIx, GIy);
-  // I_canny_hsvuc = cannyDetector.detect(Iin_hsvuc);
+  // vpImage<unsigned char> GIdisp_hsvuc_vonly = convertToDisplay(GImag, min, max);
+  float lowerThresh, upperThresh;
+  vpImage<unsigned char> GIdisp_hsvuc_vonly = showCannyLikeGradient(GImag, p_mask, min, max, options.m_lowerThreshRatio, options.m_upperThreshRatio, lowerThresh, upperThresh);
+  cannyDetector.reinit();
+  cannyDetector.setMask(p_mask);
+  cannyDetector.setGradients(GIx, GIy);
+  cannyDetector.setGradientsManitudeAndOrientation(GImag, GItheta);
+  cannyDetector.setCannyThresholds(lowerThresh, upperThresh);
+  I_canny_hsvuc = cannyDetector.detect(Iin_convert);
 
   vpImage<vpHSV<unsigned char, true>> Iblur_hsvd;
   double tStartBlurHSVd = vpTime::measureTimeMicros();
@@ -702,7 +899,7 @@ int main(int argc, const char *argv[])
 #ifdef BUILD_REFERENCE_METHOD
     std::shared_ptr<vpDisplay> disp_GI_hsvuc_vonly = vpDisplayFactory::createDisplay(GIdisp_hsvuc_vonly, posX, -1, "Gradient reference method", vpDisplay::SCALE_AUTO);
 #else
-    std::shared_ptr<vpDisplay> disp_GI_hsvuc_vonly = vpDisplayFactory::createDisplay(GIdisp_hsvuc_vonly, 2 * posX, -1, "Gradient V only", vpDisplay::SCALE_AUTO);
+    std::shared_ptr<vpDisplay> disp_GI_hsvuc_vonly = vpDisplayFactory::createDisplay(GIdisp_hsvuc_vonly, 2 * posX, -1, "Gradient article", vpDisplay::SCALE_AUTO);
 #endif
     vpDisplay::display(GIdisp_hsvuc_vonly);
     vpDisplay::flush(GIdisp_hsvuc_vonly);

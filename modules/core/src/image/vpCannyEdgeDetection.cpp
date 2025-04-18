@@ -73,7 +73,6 @@ vpCannyEdgeDetection::vpCannyEdgeDetection()
   , m_nbThread(-1)
   , m_gaussianKernelSize(3)
   , m_gaussianStdev(1.f)
-  , m_areGradientAvailable(false)
   , m_gradientFilterKernelSize(3)
   , m_lowerThreshold(-1.f)
   , m_lowerThresholdRatio(0.6f)
@@ -98,7 +97,6 @@ vpCannyEdgeDetection::vpCannyEdgeDetection(const int &gaussianKernelSize, const 
   , m_nbThread(nbThread)
   , m_gaussianKernelSize(gaussianKernelSize)
   , m_gaussianStdev(gaussianStdev)
-  , m_areGradientAvailable(false)
   , m_gradientFilterKernelSize(sobelAperture)
   , m_lowerThreshold(lowerThreshold)
   , m_lowerThresholdRatio(lowerThresholdRatio)
@@ -277,6 +275,7 @@ vpCannyEdgeDetection::detect(const vpImage<unsigned char> &I)
 void
 vpCannyEdgeDetection::step3to5(const unsigned int &height, const unsigned int &width, const float &lowerThreshold, const float &upperThreshold)
 {
+  m_areGragientMagOriComputed = false;
 #if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__))) // UNIX
   rlim_t initialStackSize = 0;
   struct rlimit rl;
@@ -501,7 +500,13 @@ vpCannyEdgeDetection::performEdgeThinning(const float &lowerThreshold)
       if (ignore_current_pixel == false) {
 
         // Computing the gradient orientation and magnitude
-        float grad = getManhattanGradient(m_dIx, m_dIy, iter);
+        float grad;
+        if (m_areGradientMagOriAvailable) {
+          grad = m_GImag.bitmap[iter];
+        }
+        else {
+          grad = getManhattanGradient(m_dIx, m_dIy, iter);
+        }
 
         if (grad < lowerThreshold) {
           // The gradient is lower than minimum threshold => ignoring the point
@@ -514,15 +519,30 @@ vpCannyEdgeDetection::performEdgeThinning(const float &lowerThreshold)
           // depending on the gradient orientation
           int dRowAlphaPlus = 0, dRowBetaPlus = 0;
           int dColAphaPlus = 0, dColBetaPlus = 0;
-          float gradientOrientation = getGradientOrientation(m_dIx, m_dIy, iter);
+          float gradientOrientation;
+          if (m_areGradientMagOriAvailable) {
+            gradientOrientation = m_GItheta.bitmap[iter];
+          }
+          else {
+            gradientOrientation = getGradientOrientation(m_dIx, m_dIy, iter);
+          }
           float alpha = 0.f, beta = 0.f;
           getInterpolWeightsAndOffsets(gradientOrientation, alpha, beta, nbCols, dRowAlphaPlus, dRowBetaPlus, dColAphaPlus, dColBetaPlus);
           int dRowAlphaMinus = -dRowAlphaPlus, dRowBetaMinus = -dRowBetaPlus;
           int dColAphaMinus = -dColAphaPlus, dColBetaMinus = -dColBetaPlus;
-          float gradAlphaPlus = getManhattanGradient(m_dIx, m_dIy, iter + dRowAlphaPlus + dColAphaPlus);
-          float gradBetaPlus = getManhattanGradient(m_dIx, m_dIy, iter + dRowBetaPlus + dColBetaPlus);
-          float gradAlphaMinus = getManhattanGradient(m_dIx, m_dIy, iter + dRowAlphaMinus + dColAphaMinus);
-          float gradBetaMinus = getManhattanGradient(m_dIx, m_dIy, iter + dRowBetaMinus + dColBetaMinus);
+          float gradAlphaPlus, gradBetaPlus, gradAlphaMinus, gradBetaMinus;
+          if (m_areGradientMagOriAvailable) {
+            gradAlphaPlus = m_GImag.bitmap[iter + dRowAlphaPlus + dColAphaPlus];
+            gradBetaPlus = m_GImag.bitmap[iter + dRowBetaPlus + dColBetaPlus];
+            gradAlphaMinus = m_GImag.bitmap[iter + dRowAlphaMinus + dColAphaMinus];
+            gradBetaMinus = m_GImag.bitmap[dRowBetaMinus + dColBetaMinus];
+          }
+          else {
+            gradAlphaPlus = getManhattanGradient(m_dIx, m_dIy, iter + dRowAlphaPlus + dColAphaPlus);
+            gradBetaPlus = getManhattanGradient(m_dIx, m_dIy, iter + dRowBetaPlus + dColBetaPlus);
+            gradAlphaMinus = getManhattanGradient(m_dIx, m_dIy, iter + dRowAlphaMinus + dColAphaMinus);
+            gradBetaMinus = getManhattanGradient(m_dIx, m_dIy, iter + dRowBetaMinus + dColBetaMinus);
+          }
           float gradPlus = (alpha * gradAlphaPlus) + (beta * gradBetaPlus);
           float gradMinus = (alpha * gradAlphaMinus) + (beta * gradBetaMinus);
 
@@ -558,6 +578,8 @@ vpCannyEdgeDetection::performEdgeThinning(const float &lowerThreshold)
 #ifdef VISP_HAVE_OPENMP
   }
 #endif
+  m_areGradientMagOriAvailable = false;
+  m_areGragientMagOriComputed = true;
 }
 
 void
