@@ -46,6 +46,9 @@ using namespace VISP_NAMESPACE_NAME;
 #endif
 
 // #define BUILD_REFERENCE_METHOD
+#define HSVUC_METHOD
+// #define HSVD_METHOD
+// #define RGB_METHOD
 
 #if (VISP_CXX_STANDARD > VISP_CXX_STANDARD_11)
 
@@ -805,9 +808,16 @@ int main(int argc, const char *argv[])
   computeAbsoluteGradient(GIx, GIy, GI, min, max);
   vpImage<unsigned char> GIdisp_hsvuc_imgfilter = convertToDisplay(GI, min, max);
 
+#if defined(HSVUC_METHOD) || defined(HSVD_METHOD) || defined(RGB_METHOD)
   double tStartGradientHSVUCRef = vpTime::measureTimeMicros();
   vpImage<FilterType> GImag, GItheta;
+#ifdef HSVUC_METHOD
   gradientFilter(Iin_hsvuc, GImag, GItheta, options.m_nbThread, p_mask, options.m_filteringType, min, max);
+#elif defined(HSVD_METHOD)
+  gradientFilter(Iin_hsvd, GImag, GItheta, options.m_nbThread, p_mask, options.m_filteringType, min, max);
+#elif defined(RGB_METHOD)
+  gradientFilter(Iload, GImag, GItheta, options.m_nbThread, p_mask, options.m_filteringType, min, max);
+#endif
   double tEndGradientHSVUCRef = vpTime::measureTimeMicros();
   // vpImage<unsigned char> GIdisp_hsvuc_vonly = convertToDisplay(GImag, min, max);
   float lowerThresh, upperThresh;
@@ -818,6 +828,7 @@ int main(int argc, const char *argv[])
   cannyDetector.setGradientsManitudeAndOrientation(GImag, GItheta);
   cannyDetector.setCannyThresholds(lowerThresh, upperThresh);
   I_canny_hsvuc = cannyDetector.detect(Iin_convert);
+#endif
 
   vpImage<vpHSV<unsigned char, true>> Iblur_hsvd;
   double tStartBlurHSVd = vpTime::measureTimeMicros();
@@ -892,7 +903,15 @@ int main(int argc, const char *argv[])
     std::shared_ptr<vpDisplay> disp_input = vpDisplayFactory::createDisplay(Iload, -1, -1, "Input color image", vpDisplay::SCALE_AUTO);
     int posX = disp_input->getWidth() + 20;
     int posY = disp_input->getHeight() + 20;
-    std::shared_ptr<vpDisplay> disp_canny = vpDisplayFactory::createDisplay(I_canny_hsvuc, posX, -1, "HSV UC Canny", vpDisplay::SCALE_AUTO);
+#ifdef HSVUC_METHOD
+    std::shared_ptr<vpDisplay> disp_canny = vpDisplayFactory::createDisplay(I_canny_hsvuc, posX, -1, "Canny on HSV uchar SVD-based gradient", vpDisplay::SCALE_AUTO);
+#elif defined(HSVD_METHOD)
+    std::shared_ptr<vpDisplay> disp_canny = vpDisplayFactory::createDisplay(I_canny_hsvuc, posX, -1, "Canny on HSV double SVD-based gradient", vpDisplay::SCALE_AUTO);
+#elif defined(RGB_METHOD)
+    std::shared_ptr<vpDisplay> disp_canny = vpDisplayFactory::createDisplay(I_canny_hsvuc, posX, -1, "Canny on RGB SVD-based gradient", vpDisplay::SCALE_AUTO);
+#else
+    std::shared_ptr<vpDisplay> disp_canny = vpDisplayFactory::createDisplay(I_canny_hsvuc, posX, -1, "Canny on HSV uchar", vpDisplay::SCALE_AUTO);
+#endif
     std::shared_ptr<vpDisplay> disp_input_uc = vpDisplayFactory::createDisplay(Iin_convert, -1, posY, "Input converted image", vpDisplay::SCALE_AUTO);
     std::shared_ptr<vpDisplay> disp_canny_uc = vpDisplayFactory::createDisplay(I_canny_uc, posX, posY, "UC Canny", vpDisplay::SCALE_AUTO);
 
@@ -936,7 +955,15 @@ int main(int argc, const char *argv[])
 #endif
   if (options.m_saveImages) {
     std::string basename = vpIoTools::getNameWE(options.m_img);
+#ifdef HSVUC_METHOD
+    vpImageIo::write(I_canny_hsvuc, "Canny_SVD_HSVUC_" + basename + ".jpg");
+#elif defined(HSVD_METHOD)
+    vpImageIo::write(I_canny_hsvuc, "Canny_SVD_HSVD_" + basename + ".jpg");
+#elif defined(RGB_METHOD)
+    vpImageIo::write(I_canny_hsvuc, "Canny_RGB_" + basename + ".jpg");
+#else
     vpImageIo::write(I_canny_hsvuc, "Canny_HSVUC_" + basename + ".jpg");
+#endif
     vpImageIo::write(I_canny_hsvd, "Canny_HSVD_" + basename + ".jpg");
     vpImageIo::write(I_canny_uc, "Canny_UC_" + basename + ".jpg");
     vpImageIo::write(GIdisp_hsvuc_imgfilter, "Gradient_HSVUC_" + basename + ".jpg");

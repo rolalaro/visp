@@ -119,6 +119,8 @@ vpCannyEdgeDetection::reinit()
   initGradientFilters();
   mp_mask = nullptr;
   m_areGradientAvailable = false;
+  m_areGradientMagOriAvailable = false;
+  m_areGragientMagOriComputed = false;
 
   // // Clearing the previous results
   m_edgeCandidateAndGradient.clear();
@@ -522,6 +524,9 @@ vpCannyEdgeDetection::performEdgeThinning(const float &lowerThreshold)
           float gradientOrientation;
           if (m_areGradientMagOriAvailable) {
             gradientOrientation = m_GItheta.bitmap[iter];
+            if (gradientOrientation < 0.f) {
+              gradientOrientation += M_PI_FLOAT; // + M_PI in order to be between 0 and M_PI_FLOAT
+            }
           }
           else {
             gradientOrientation = getGradientOrientation(m_dIx, m_dIy, iter);
